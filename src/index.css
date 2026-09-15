@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — single source of truth for the theme.
+ * Reference these via Tailwind utilities (e.g. bg-background, text-primary,
+ * rounded-md) instead of hardcoding raw values in components.
+ */
+@theme {
+  --color-background: #ffffff;
+  --color-foreground: #08060d;
+  --color-muted: #6b6375;
+  --color-border: #e5e4e7;
+  --color-primary: #aa3bff;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f4f3ec;
+  --color-secondary-foreground: #08060d;
+  --color-success: #16a34a;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, Consolas, monospace;
+
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2.5rem;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 1rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-background: #16171d;
+    --color-foreground: #f3f4f6;
+    --color-muted: #9ca3af;
+    --color-border: #2e303a;
+    --color-secondary: #1f2028;
+    --color-secondary-foreground: #f3f4f6;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  color-scheme: light dark;
+}
