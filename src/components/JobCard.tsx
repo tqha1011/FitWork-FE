@@ -1,3 +1,4 @@
+import { money, dateLabel } from "../shared/formatters";
 import { Bookmark, ArrowUpRight, MapPin, Clock3 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useMarketplace } from "../contexts/marketplaceContext";
@@ -9,8 +10,6 @@ import {
   Button,
   SkillChip,
   Verified,
-  dateLabel,
-  money,
 } from "./ui";
 export default function JobCard({ job }: { job: Job }) {
   const {

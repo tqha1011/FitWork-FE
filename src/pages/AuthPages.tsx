@@ -1,316 +1,425 @@
-import { useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useRef, useState, type FormEvent } from "react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import {
+  AlertCircle,
   ArrowRight,
   BriefcaseBusiness,
   Check,
   Eye,
   EyeOff,
+  LoaderCircle,
   MoveUpRight,
   PenTool,
 } from "lucide-react";
-import { Button, ButtonLink, Field } from "../components/ui";
-import { useMarketplace } from "../contexts/marketplaceContext";
-import type { Role } from "../types/marketplace";
-import "../styles/freelancer.css";
+import { Button } from "../components/ui";
+import { useAuth } from "../contexts/authContext";
+import { login, register } from "../services/authService";
+import { authErrorMessage } from "../shared/authErrorMessage";
+import {
+  validateLogin,
+  validateRegistration,
+  type AuthFieldErrors,
+} from "../shared/authValidation";
+import type { UserType } from "../types/auth";
+import "../styles/auth.css";
+
+const fieldLabels: Record<string, string> = {
+  email: "Email address",
+  password: "Password",
+  username: "Username",
+  fullName: "Full name",
+  userType: "Account type",
+};
 
 export function AuthPage() {
   const { pathname } = useLocation();
-  return <AuthScreen key={pathname} />;
+  return <AuthScreen key={pathname} signup={pathname === "/auth/sign-up"} />;
 }
 
-function AuthScreen() {
-  const { pathname } = useLocation();
+function AuthScreen({ signup }: { signup: boolean }) {
+  const { session, initializing } = useAuth();
   const navigate = useNavigate();
-  const { setRole } = useMarketplace();
-  const mode = pathname.split("/").pop();
-  const signup = mode === "sign-up";
-  const selectRole = mode === "select-role";
-  const forgot = mode === "forgot-password";
-  const reset = mode === "reset-password";
-  const [role, chooseRole] = useState<Exclude<Role, "guest">>("freelancer");
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const location = useLocation();
+  const registration = location.state as {
+    registered?: boolean;
+    email?: string;
+  } | null;
+  const [userType, setUserType] = useState<UserType>("APPLICANT");
+  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState(registration?.email ?? "");
   const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [accepted, setAccepted] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<AuthFieldErrors>({});
+  const [formError, setFormError] = useState("");
   const [pending, setPending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const title = selectRole
-    ? "How would you like to work?"
-    : forgot
-      ? "Let’s get you back in."
-      : reset
-        ? "A fresh start."
-        : signup
-          ? "Your next chapter starts here."
-          : "Good to see you again.";
-  const description = selectRole
-    ? "Choose the workspace that fits what you’re here to do."
-    : forgot
-      ? "Enter your email to preview the password recovery flow."
-      : reset
-        ? "Choose a new password for your account."
-        : signup
-          ? "Make room for work that feels like a good fit."
-          : "Sign in and pick up where you left off.";
+  const submitted = useRef(false);
+  const errorSummary = useRef<HTMLDivElement>(null);
+
+  if (session)
+    return <Navigate to={`/${session.user.role}/dashboard`} replace />;
+
+  const inputState = (field: keyof AuthFieldErrors) => ({
+    id: field,
+    name: field,
+    "aria-invalid": Boolean(errors[field]),
+    "aria-describedby": errors[field]
+      ? `${field}-error`
+      : field === "password" && signup
+        ? "password-hint"
+        : undefined,
+  });
+  const fieldError = (field: keyof AuthFieldErrors) =>
+    errors[field] && (
+      <span id={`${field}-error`} className="field-error-text">
+        {errors[field]}
+      </span>
+    );
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const next: Record<string, string> = {};
-    if (!selectRole) {
-      if (!reset && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-        next.email = "Enter a valid email address.";
-      if (signup && name.trim().length < 2) next.name = "Enter your full name.";
-      if (!forgot && password.length < 8)
-        next.password = "Use at least 8 characters.";
-      if (reset && password !== confirmation)
-        next.confirmation = "Your passwords don’t match.";
-      if (signup && !accepted)
-        next.accepted = "Confirm you understand this is a sample workspace.";
-    }
+    if (submitted.current || initializing) return;
+    setFormError("");
+    const input = {
+      email: email.trim(),
+      password,
+      fullName: fullName.trim(),
+      username: username.trim(),
+      userType,
+    };
+    const next = signup ? validateRegistration(input) : validateLogin(input);
     setErrors(next);
-    if (Object.keys(next).length) return;
+    if (Object.keys(next).length) {
+      requestAnimationFrame(() => errorSummary.current?.focus());
+      return;
+    }
+    submitted.current = true;
     setPending(true);
-    await new Promise((resolve) => window.setTimeout(resolve, 450));
-    if (forgot || reset) {
-      setSent(true);
+    try {
+      if (signup) {
+        await register(input);
+        navigate("/auth/sign-in", {
+          replace: true,
+          state: { registered: true, email: input.email },
+        });
+      } else {
+        const authenticated = await login({ email: input.email, password });
+        navigate(`/${authenticated.user.role}/dashboard`, { replace: true });
+      }
+    } catch (error: unknown) {
+      const message = authErrorMessage(error, signup ? "register" : "login");
+      setFormError(message);
+      requestAnimationFrame(() => errorSummary.current?.focus());
+    } finally {
+      submitted.current = false;
       setPending(false);
-      return;
     }
-    if (signup) {
-      navigate("/auth/select-role");
-      return;
-    }
-    setRole(role);
-    navigate(`/${role}/dashboard`);
   }
+
   return (
-    <div className="auth-layout">
-      <aside className="auth-story" aria-label="About FitWork">
-        <span className="auth-story-overline">GOOD WORK. GOOD COMPANY.</span>
-        <h2>
-          A little more fit.
-          <br />A lot more possibility.
-        </h2>
-        <p>
-          A thoughtful space for independent talent and the teams who need them.
-        </p>
-        <div className="auth-mini-workspace" aria-hidden="true">
-          <div className="auth-mini-top">
-            <span className="auth-mini-symbol">
-              <PenTool size={20} />
-            </span>
-            <span>Room for your next big idea</span>
-            <MoveUpRight size={18} />
-          </div>
-          <h3>
-            Work on something
-            <br />
-            that matters to you.
-          </h3>
-          <div className="auth-mini-tags">
-            <span>Creative freedom</span>
-            <span>Clear expectations</span>
-          </div>
-          <div className="auth-mini-line" />
-          <div className="auth-mini-bottom">
-            <span className="auth-people">
-              <i>JL</i>
-              <i>SR</i>
-              <i>AM</i>
-            </span>
-            <span>
-              Different skills.
-              <br />
-              Shared ambition.
-            </span>
-          </div>
+    <div className="auth-page">
+      <a className="skip-link" href="#auth-content">
+        Skip to form
+      </a>
+      <header className="auth-header">
+        <Link className="brand" to="/" aria-label="FitWork home">
+          <span className="brand-mark">
+            <MoveUpRight size={27} strokeWidth={2.5} aria-hidden="true" />
+          </span>
+          FitWork<span className="auth-brand-dot">.</span>
+        </Link>
+        <div className="auth-header-action">
+          <span>{signup ? "Already a member?" : "New here?"}</span>
+          <Link
+            className="button button-secondary"
+            to={signup ? "/auth/sign-in" : "/auth/sign-up"}
+          >
+            {signup ? "Sign in" : "Create an account"}
+            <ArrowRight size={16} aria-hidden="true" />
+          </Link>
         </div>
-        <span className="auth-story-foot">
-          Independent minds. Meaningful connections.
-        </span>
-      </aside>
-      <section className="auth-form-region">
-        {sent ? (
-          <div className="auth-form stack">
-            <span className="auth-success-icon">
-              <Check size={26} />
-            </span>
-            <h1>
-              {forgot ? "Check your next step" : "You’re ready to sign in"}
-            </h1>
-            <p className="muted">
-              {forgot
-                ? "This is a sample recovery flow, so no email has been sent. You can continue to preview setting a new password."
-                : "Password reset preview complete. No credentials were saved or changed."}
-            </p>
-            <ButtonLink to={forgot ? "/auth/reset-password" : "/auth/sign-in"}>
-              {forgot ? "Preview password reset" : "Back to sign in"}
-              <ArrowRight size={17} />
-            </ButtonLink>
-          </div>
-        ) : (
-          <form className="auth-form stack" onSubmit={submit} noValidate>
-            <div>
-              <p className="auth-eyebrow">YOUR WORK, WITH MORE POSSIBILITY</p>
-              <h1>{title}</h1>
-              <p className="muted">{description}</p>
+      </header>
+      <main className={`auth-layout ${signup ? "auth-layout-signup" : ""}`}>
+        <aside className="auth-story" aria-label="About FitWork">
+          <span className="auth-story-overline">
+            Independent talent. Shared ambition.
+          </span>
+          <h2>
+            Good work starts <br />
+            with a good fit.
+          </h2>
+          <p>
+            A place for independent minds and the teams who need them. Find your
+            next opportunity, or the talent to bring an idea to life.
+          </p>
+          <div className="auth-work-note">
+            <div className="auth-note-top">
+              <span className="auth-note-icon">
+                <PenTool size={22} aria-hidden="true" />
+              </span>
+              <span>Made for meaningful work</span>
+              <MoveUpRight size={19} aria-hidden="true" />
             </div>
-            {(selectRole || (!forgot && !reset && !signup)) && (
-              <fieldset className="role-options">
-                <legend>{selectRole ? "I’m here to…" : "Sign in as"}</legend>
-                {(["freelancer", "client"] as const).map((value) => (
-                  <label
-                    key={value}
-                    className={`role-option ${role === value ? "selected" : ""}`}
+            <h3>
+              Your skills.
+              <br />
+              Their next big idea.
+            </h3>
+            <p>
+              Find work that fits your strengths, with clear expectations from
+              the start.
+            </p>
+            <div className="auth-note-footer">
+              <span className="auth-note-check">
+                <Check size={16} aria-hidden="true" />
+              </span>
+              Different skills. Better together.
+            </div>
+          </div>
+          <div className="auth-story-foot">
+            <span className="auth-foot-line" />
+            Room for your next chapter.
+          </div>
+        </aside>
+        <section
+          id="auth-content"
+          className="auth-form-region"
+          aria-labelledby="auth-title"
+          tabIndex={-1}
+        >
+          <form
+            className="auth-form"
+            onSubmit={submit}
+            noValidate
+            aria-busy={pending}
+          >
+            <div className="auth-form-heading">
+              <p className="auth-eyebrow">
+                {signup ? "Join FitWork" : "Welcome back"}
+              </p>
+              <h1 id="auth-title">
+                {signup ? "Make your next move." : "Good to see you again."}
+              </h1>
+              <p className="muted">
+                {signup
+                  ? "Create an account for the way you work."
+                  : "Sign in to your FitWork account."}
+              </p>
+            </div>
+            {registration?.registered && !signup && (
+              <div className="auth-notice auth-notice-success" role="status">
+                <Check size={19} aria-hidden="true" />
+                <p>Your account is ready. Sign in to get started.</p>
+              </div>
+            )}
+            {(formError || Object.keys(errors).length > 0) && (
+              <div
+                ref={errorSummary}
+                className="auth-notice auth-notice-error"
+                role="alert"
+                tabIndex={-1}
+              >
+                <AlertCircle size={19} aria-hidden="true" />
+                <div>
+                  {formError || (
+                    <>
+                      <strong>Check the following fields:</strong>
+                      <ul>
+                        {Object.entries(errors).map(([field, message]) => (
+                          <li key={field}>
+                            <a
+                              href={`#${field}`}
+                              aria-label={`${fieldLabels[field] ?? field}: ${message}`}
+                              title={message}
+                            >
+                              {fieldLabels[field] ?? field}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+            <fieldset className="auth-fields" disabled={pending}>
+              <legend className="sr-only">
+                {signup ? "Create your account" : "Sign-in details"}
+              </legend>
+              {signup && (
+                <fieldset className="role-options" id="userType">
+                  <legend>I’m here to</legend>
+                  {(["APPLICANT", "COMPANY"] as const).map((value) => (
+                    <label
+                      key={value}
+                      className={`role-option ${userType === value ? "selected" : ""}`}
+                    >
+                      <input
+                        type="radio"
+                        name="userType"
+                        value={value}
+                        checked={userType === value}
+                        onChange={() => setUserType(value)}
+                      />
+                      {value === "APPLICANT" ? (
+                        <PenTool size={20} aria-hidden="true" />
+                      ) : (
+                        <BriefcaseBusiness size={20} aria-hidden="true" />
+                      )}
+                      <span>
+                        <strong>
+                          {value === "APPLICANT" ? "Find work" : "Hire talent"}
+                        </strong>
+                        <small>
+                          {value === "APPLICANT" ? "Freelancer" : "Client"}
+                        </small>
+                      </span>
+                      {userType === value && (
+                        <Check
+                          size={15}
+                          className="role-check"
+                          aria-hidden="true"
+                        />
+                      )}
+                    </label>
+                  ))}
+                </fieldset>
+              )}
+              {signup && (
+                <div className="auth-name-fields">
+                  <div
+                    className={`field ${errors.fullName ? "field-error" : ""}`}
                   >
+                    <label className="field-label" htmlFor="fullName">
+                      Full name
+                    </label>
                     <input
-                      type="radio"
-                      name="role"
-                      value={value}
-                      checked={role === value}
-                      onChange={() => chooseRole(value)}
+                      {...inputState("fullName")}
+                      autoComplete="name"
+                      placeholder="Your full name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
                     />
-                    {value === "freelancer" ? (
-                      <PenTool size={21} />
-                    ) : (
-                      <BriefcaseBusiness size={21} />
-                    )}
-                    <span>
-                      <strong>
-                        {value === "freelancer" ? "Find work" : "Hire talent"}
-                      </strong>
-                      <small>
-                        {value === "freelancer"
-                          ? "I’m a Freelancer"
-                          : "I’m a Client"}
-                      </small>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
-            )}
-            {signup && (
-              <Field label="Full name" error={errors.name}>
+                    {fieldError("fullName")}
+                  </div>
+                  <div
+                    className={`field ${errors.username ? "field-error" : ""}`}
+                  >
+                    <label className="field-label" htmlFor="username">
+                      Username
+                    </label>
+                    <input
+                      {...inputState("username")}
+                      autoComplete="username"
+                      placeholder="Your username"
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      minLength={3}
+                      required
+                    />
+                    {fieldError("username")}
+                  </div>
+                </div>
+              )}
+              <div className={`field ${errors.email ? "field-error" : ""}`}>
+                <label className="field-label" htmlFor="email">
+                  Email address
+                </label>
                 <input
-                  autoComplete="name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  placeholder="Your full name"
-                />
-              </Field>
-            )}
-            {!selectRole && !reset && (
-              <Field label="Email address" error={errors.email}>
-                <input
+                  {...inputState("email")}
                   type="email"
                   autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  spellCheck={false}
+                  autoCapitalize="none"
+                  required
                 />
-              </Field>
-            )}
-            {!selectRole && !forgot && (
-              <Field
-                label={reset ? "New password" : "Password"}
-                error={errors.password}
-                hint={signup || reset ? "At least 8 characters" : undefined}
-              >
+                {fieldError("email")}
+              </div>
+              <div className={`field ${errors.password ? "field-error" : ""}`}>
+                <label className="field-label" htmlFor="password">
+                  Password
+                </label>
                 <div className="password-input">
                   <input
+                    {...inputState("password")}
                     type={showPassword ? "text" : "password"}
-                    autoComplete={
-                      signup || reset ? "new-password" : "current-password"
+                    autoComplete={signup ? "new-password" : "current-password"}
+                    placeholder={
+                      signup
+                        ? "Create a strong password"
+                        : "Enter your password"
                     }
                     value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="Enter your password"
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowPassword((value) => !value)}
                     aria-label={
                       showPassword ? "Hide password" : "Show password"
                     }
+                    aria-pressed={showPassword}
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? (
+                      <EyeOff size={19} aria-hidden="true" />
+                    ) : (
+                      <Eye size={19} aria-hidden="true" />
+                    )}
                   </button>
                 </div>
-              </Field>
-            )}
-            {reset && (
-              <Field label="Confirm new password" error={errors.confirmation}>
-                <input
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmation}
-                  onChange={(event) => setConfirmation(event.target.value)}
-                />
-              </Field>
-            )}
-            {!signup && !forgot && !reset && !selectRole && (
-              <Link
-                className="text-link auth-forgot"
-                to="/auth/forgot-password"
-              >
-                Forgot password?
-              </Link>
-            )}
-            {signup && (
-              <Field label="Sample workspace" error={errors.accepted}>
-                <label className="checkbox-label">
-                  <input
-                    type="checkbox"
-                    checked={accepted}
-                    onChange={(event) => setAccepted(event.target.checked)}
-                  />
-                  I understand this preview uses fictional accounts and local
-                  data.
-                </label>
-              </Field>
-            )}
-            <Button type="submit" disabled={pending}>
-              {pending
-                ? "Just a moment…"
-                : selectRole
-                  ? `Enter ${role === "client" ? "Client" : "Freelancer"} workspace`
-                  : forgot
-                    ? "Continue to recovery"
-                    : reset
-                      ? "Reset password"
-                      : signup
-                        ? "Create account"
-                        : "Sign in"}
-              <ArrowRight size={17} />
+                {signup && (
+                  <span className="field-hint" id="password-hint">
+                    8+ characters, uppercase, lowercase, number &amp; special
+                    character.
+                  </span>
+                )}
+                {fieldError("password")}
+              </div>
+            </fieldset>
+            <Button
+              className="auth-submit"
+              type="submit"
+              disabled={pending || initializing}
+            >
+              {pending || initializing ? (
+                <LoaderCircle size={18} className="spin" aria-hidden="true" />
+              ) : null}
+              {initializing
+                ? "Checking your session…"
+                : pending
+                  ? signup
+                    ? "Creating account…"
+                    : "Signing in…"
+                  : signup
+                    ? "Create account"
+                    : "Sign in"}
+              {!pending && !initializing && (
+                <ArrowRight size={18} aria-hidden="true" />
+              )}
             </Button>
-            <p className="auth-demo-note">
-              Explore a sample workspace. Your credentials aren’t saved.
+            <p className="auth-switch">
+              {signup
+                ? "Already have an account? "
+                : "Don’t have an account yet? "}
+              <Link
+                className="text-link"
+                to={signup ? "/auth/sign-in" : "/auth/sign-up"}
+              >
+                {signup ? "Sign in" : "Join FitWork"}
+              </Link>
             </p>
-            {!selectRole && (
-              <p className="auth-switch">
-                {signup
-                  ? "Already have an account? "
-                  : forgot || reset
-                    ? "Remember your password? "
-                    : "New to FitWork? "}
-                <Link
-                  className="text-link"
-                  to={
-                    signup || forgot || reset
-                      ? "/auth/sign-in"
-                      : "/auth/sign-up"
-                  }
-                >
-                  {signup || forgot || reset ? "Sign in" : "Join us"}
-                </Link>
-              </p>
-            )}
           </form>
-        )}
-      </section>
+        </section>
+      </main>
+      <footer className="auth-footer">
+        <span>© {new Date().getFullYear()} FitWork</span>
+        <span>Independent minds. Meaningful connections.</span>
+      </footer>
     </div>
   );
 }

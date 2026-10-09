@@ -1,0 +1,348 @@
+.job-workspace {
+  min-height: 100dvh;
+  background: var(--color-canvas);
+}
+.job-sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: 248px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.job-role {
+  margin: 12px 8px 0;
+}
+.job-navigation {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.job-navigation a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 12px;
+  border-radius: var(--radius-control);
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+.job-navigation a.active {
+  color: var(--color-primary-hover);
+  background: var(--color-primary-subtle);
+}
+.job-navigation a:hover {
+  background: var(--color-surface-subtle);
+}
+.job-sidebar-account {
+  margin-top: auto;
+  border-top: 1px solid var(--color-border);
+  padding-top: 20px;
+}
+.job-sidebar-account p {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin-bottom: 8px;
+}
+.job-main {
+  margin-left: 248px;
+}
+.job-utility {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+  padding: 16px 32px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+.job-content {
+  padding: 32px;
+  max-width: 1440px;
+  margin: auto;
+  outline-offset: -4px;
+}
+.job-search-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.job-filters {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.job-filters .section-heading {
+  margin: 0;
+}
+.job-filters h2 {
+  font-size: 18px;
+}
+.job-results {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+.filter-group {
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+.filter-group summary,
+.job-description summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: list-item;
+  padding: 12px 0;
+  font-weight: 500;
+}
+.reference-choices {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.reference-choices legend {
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+.filter-group .reference-choices legend {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+.reference-options {
+  max-height: 240px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.checkbox-label {
+  overflow-wrap: anywhere;
+}
+.budget-filter {
+  gap: 16px;
+}
+.live-job-card h2 {
+  font-size: 20px;
+  margin: 16px 0 10px;
+  overflow-wrap: anywhere;
+}
+.live-job-excerpt {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: var(--color-text-secondary);
+}
+.job-description {
+  margin-bottom: 16px;
+}
+.job-description summary {
+  color: var(--color-primary);
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.job-description p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-width: 75ch;
+  margin: 8px 0 20px;
+}
+.live-job-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 20px 0 0;
+}
+.live-job-meta dt,
+.application-values dt {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.live-job-meta dd,
+.application-values dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.job-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: var(--color-error-surface);
+  border: 1px solid var(--color-error-border);
+  border-radius: 10px;
+  color: var(--color-error);
+  overflow-wrap: anywhere;
+}
+.job-form-page {
+  max-width: 720px;
+  margin: auto;
+}
+.job-form-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.job-apply-dialog {
+  max-width: 600px;
+}
+.job-apply-dialog form {
+  gap: 20px;
+}
+.job-apply-dialog .dialog-actions {
+  margin-top: 8px;
+}
+.upload-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.upload-status progress {
+  height: 10px;
+}
+.application-values {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  margin: 24px 0 0;
+}
+.application-card h2 {
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.application-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+.application-id {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+  margin-top: 8px;
+  color: var(--color-text-secondary);
+}
+@media (max-width: 1100px) {
+  .job-search-layout {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+  .job-content {
+    padding: 24px;
+  }
+  .job-sidebar {
+    width: 220px;
+  }
+  .job-main {
+    margin-left: 220px;
+  }
+  .job-utility {
+    padding: 16px 24px;
+  }
+}
+@media (max-width: 800px) {
+  .job-sidebar {
+    position: static;
+    width: auto;
+    padding: 20px 24px;
+    gap: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .job-role {
+    display: none;
+  }
+  .job-navigation {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .job-navigation a {
+    padding: 10px 12px;
+  }
+  .job-sidebar-account {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .job-sidebar-account p {
+    margin: 0;
+  }
+  .job-main {
+    margin: 0;
+  }
+  .job-utility {
+    min-height: 56px;
+  }
+  .job-search-layout {
+    grid-template-columns: 1fr;
+  }
+  .job-filters .reference-options {
+    max-height: 180px;
+  }
+  .application-values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .job-sidebar {
+    padding: 16px;
+  }
+  .job-navigation {
+    gap: 4px;
+  }
+  .job-navigation a {
+    font-size: 13px;
+    padding: 10px 8px;
+    gap: 6px;
+  }
+  .job-navigation a svg {
+    width: 16px;
+  }
+  .job-utility {
+    padding: 12px 16px;
+  }
+  .job-utility > span:first-child {
+    max-width: 24ch;
+  }
+  .job-content {
+    padding: 24px 16px 48px;
+  }
+  .job-filters {
+    padding: 16px;
+  }
+  .job-sidebar-account p {
+    font-size: 12px;
+  }
+  .live-job-meta,
+  .application-values {
+    grid-template-columns: 1fr;
+  }
+  .job-card-footer strong {
+    font-size: 15px;
+  }
+  .application-card-header {
+    flex-direction: column;
+  }
+  .job-results .pagination {
+    font-size: 12px;
+  }
+}
