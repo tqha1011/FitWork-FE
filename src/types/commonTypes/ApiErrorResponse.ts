@@ -1,5 +1,1 @@
-export interface ApiErrorResponse {
-  statusCode: number;
-  message: string;
-  error: string;
-}
+export type { ApiError as ApiErrorResponse } from "../auth";

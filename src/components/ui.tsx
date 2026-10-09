@@ -303,6 +303,31 @@ export function Dialog({
       ref={ref}
       className={`dialog ${className}`}
       aria-labelledby={titleId}
+      onKeyDown={(event) => {
+        if (event.key !== "Tab") return;
+        const focusable = Array.from(
+          event.currentTarget.querySelectorAll<HTMLElement>(
+            'button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+          ),
+        ).filter(
+          (element) =>
+            !element.matches(":disabled") &&
+            element.getClientRects().length > 0,
+        );
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (!first) {
+          event.preventDefault();
+          return;
+        }
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -549,19 +574,4 @@ export function ProfileCompleteness({
       </Link>
     </section>
   );
-}
-export function money(amount: number) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-export function dateLabel(date: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${date.slice(0, 10)}T12:00:00Z`));
 }
