@@ -1,3 +1,4 @@
+import ApplicantEvaluation from "../components/ApplicantEvaluation";
 import { useSearchParams } from "react-router-dom";
 import { Button, ButtonLink, PageHeader } from "../components/ui";
 import { JobError, JobPagination } from "../components/JobUi";
@@ -119,6 +120,11 @@ export default function ApplicationsPage() {
                 <p className="application-id">
                   Application ID: {item.jobApplicantPublicId}
                 </p>
+                <ApplicantEvaluation
+                  key={`${item.jobPublicId}:${item.resumePublicId}`}
+                  jobId={item.jobPublicId}
+                  resumeId={item.resumePublicId}
+                />
               </article>
             );
           })}

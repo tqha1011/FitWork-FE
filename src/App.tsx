@@ -6,6 +6,9 @@ import { useAuth } from "./contexts/authContext";
 import { AuthPage } from "./pages/AuthPages";
 import AccountPage from "./pages/AccountPage";
 import type { AccountRole } from "./types/auth";
+import ResumeProvider from "./contexts/ResumeProvider";
+import ResumesPage from "./pages/ResumesPage";
+import CompanyEvaluationPage from "./pages/CompanyEvaluationPage";
 import JobProvider from "./contexts/JobProvider";
 import { getSessionGeneration } from "./services/authSession";
 import JobShell from "./components/JobShell";
@@ -36,7 +39,9 @@ function JobWorkspace() {
     <JobProvider
       key={`${getSessionGeneration()}:${session?.user.publicId}:${session?.user.role}`}
     >
-      <JobShell />
+      <ResumeProvider>
+        <JobShell />
+      </ResumeProvider>
     </JobProvider>
   );
 }
@@ -83,8 +88,17 @@ export default function App() {
               <Route path="/account" element={<AccountPage embedded />} />
               <Route element={<ProtectedRoute role="client" />}>
                 <Route path="/client/jobs/new" element={<CreateJobPage />} />
+                <Route
+                  path="/client/evaluations"
+                  element={<CompanyEvaluationPage />}
+                />
+                <Route
+                  path="/client/jobs/:jobPublicId/evaluations/:evaluationPublicId"
+                  element={<CompanyEvaluationPage />}
+                />
               </Route>
               <Route element={<ProtectedRoute role="freelancer" />}>
+                <Route path="/freelancer/resumes" element={<ResumesPage />} />
                 <Route
                   path="/freelancer/applications"
                   element={<ApplicationsPage />}

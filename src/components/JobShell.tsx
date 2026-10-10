@@ -14,6 +14,7 @@ import { logout } from "../services/authService";
 import { authErrorMessage } from "../shared/authErrorMessage";
 import { Button } from "./ui";
 import "../styles/jobs.css";
+import "../styles/resumes.css";
 
 export default function JobShell() {
   const { session } = useAuth();
@@ -62,6 +63,10 @@ export default function JobShell() {
               My Applications
             </NavLink>
           )}
+          <NavLink to={client ? "/client/evaluations" : "/freelancer/resumes"}>
+            <Files size={19} aria-hidden="true" />
+            {client ? "Applicant Evaluations" : "My Resumes"}
+          </NavLink>
           <NavLink to="/account">
             <UserRound size={19} aria-hidden="true" />
             Account

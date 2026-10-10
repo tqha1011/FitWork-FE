@@ -101,6 +101,7 @@ export function resumeContentType(file: {
   const mime = types[file.name.split(".").at(-1)?.toLowerCase() ?? ""];
   if (
     !mime ||
+    !Number.isSafeInteger(file.size) ||
     file.size < 1 ||
     file.size > 5 * 1024 * 1024 ||
     (file.type && file.type !== mime)

@@ -43,7 +43,7 @@ test("resume upload requests exact metadata and storage PUT has MIME with no API
       config,
       data: {
         publicId: "resume-public",
-        ingestionStatus: "QUEUED",
+        ingestionStatus: "PENDING",
         ingestionPublicId: "ingest",
       },
       status: 201,
@@ -87,4 +87,41 @@ test("invalid file is rejected before any request and each upload failure propag
   await assert.rejects(uploadResumeFile("https://storage.example", file));
   await assert.rejects(createResume("resume.pdf", "key"));
   assert.equal(calls, 3);
+});
+
+test("replace sends both required fields, delete accepts empty 204 and preview requests inline", async () => {
+  const { updateResume, deleteResume, getResumeDownloadUrl } =
+    await import("./resumeService.ts");
+  const calls: string[] = [];
+  api.defaults.adapter = async (config) => {
+    calls.push(`${config.method} ${config.url}`);
+    if (config.method === "patch")
+      assert.deepEqual(JSON.parse(config.data), {
+        name: "New CV",
+        storageKey: "new-key",
+      });
+    if (config.method === "get")
+      assert.deepEqual(config.params, { disposition: "inline" });
+    return {
+      config,
+      data:
+        config.method === "delete"
+          ? ""
+          : { downloadUrl: "https://storage.example/download" },
+      status: config.method === "delete" ? 204 : 200,
+      statusText: "",
+      headers: new AxiosHeaders(),
+    };
+  };
+  await updateResume("resume-id", "New CV", "new-key");
+  await deleteResume("resume-id");
+  assert.equal(
+    await getResumeDownloadUrl("resume-id", "inline"),
+    "https://storage.example/download",
+  );
+  assert.deepEqual(calls, [
+    "patch /resume/resume-id",
+    "delete /resume/resume-id",
+    "get /resume/resume-id/download-url",
+  ]);
 });

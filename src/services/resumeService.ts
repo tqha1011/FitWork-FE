@@ -47,3 +47,32 @@ export async function createResume(
     await api.post<ResumeResponse>("/resume", { name, storageKey }, { signal })
   ).data;
 }
+
+export async function updateResume(
+  resumePublicId: string,
+  name: string,
+  storageKey: string,
+  signal?: AbortSignal,
+): Promise<ResumeResponse> {
+  return (
+    await api.patch<ResumeResponse>(
+      `/resume/${encodeURIComponent(resumePublicId)}`,
+      { name: name.trim(), storageKey },
+      { signal },
+    )
+  ).data;
+}
+export async function deleteResume(resumePublicId: string): Promise<void> {
+  await api.delete(`/resume/${encodeURIComponent(resumePublicId)}`);
+}
+export async function getResumeDownloadUrl(
+  resumePublicId: string,
+  disposition: "inline" | "attachment" = "attachment",
+): Promise<string> {
+  return (
+    await api.get<{ downloadUrl: string }>(
+      `/resume/${encodeURIComponent(resumePublicId)}/download-url`,
+      { params: { disposition } },
+    )
+  ).data.downloadUrl;
+}
