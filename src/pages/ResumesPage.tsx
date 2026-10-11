@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FileText,
   Upload,
@@ -8,17 +8,91 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button, Dialog, PageHeader } from "../components/ui";
+import { useSearchParams } from "react-router-dom";
+import { JobError, JobPagination } from "../components/JobUi";
+import ResumeDetailsDialog from "../components/ResumeDetailsDialog";
+import { registerSavedResume } from "../shared/resumeSession";
+import type { ResumeItem } from "../types/resume";
+import type { PageResult } from "../types/job";
 import ResumeUploadDialog from "../components/ResumeUploadDialog";
 import ResumeStatus from "../components/ResumeStatus";
 import { useResumes, type SessionResume } from "../contexts/resumeContext";
 import {
   deleteResume,
   getResumeDownloadUrl,
+  getResumes,
   updateResume,
 } from "../services/resumeService";
 import { processingErrorMessage } from "../shared/processingErrorMessage";
 export default function ResumesPage() {
-  const { resumes, forgetResume, rememberResume } = useResumes();
+  const [params, setParams] = useSearchParams();
+  const requestedPage = Number(params.get("pageNumber") ?? 1);
+  const requestedSize = Number(params.get("pageSize") ?? 20);
+  const pageNumber =
+    Number.isSafeInteger(requestedPage) && requestedPage >= 1
+      ? requestedPage
+      : 1;
+  const pageSize =
+    Number.isSafeInteger(requestedSize) &&
+    requestedSize >= 1 &&
+    requestedSize <= 100
+      ? requestedSize
+      : 20;
+  return (
+    <ResumeCollection
+      key={`${pageNumber}:${pageSize}`}
+      pageNumber={pageNumber}
+      pageSize={pageSize}
+      onPage={(value) => {
+        const next = new URLSearchParams(params);
+        next.set("pageNumber", String(value));
+        next.set("pageSize", String(pageSize));
+        setParams(next);
+      }}
+    />
+  );
+}
+
+function ResumeCollection({
+  pageNumber,
+  pageSize,
+  onPage,
+}: {
+  pageNumber: number;
+  pageSize: number;
+  onPage: (page: number) => void;
+}) {
+  const { resumes, forgetResume, rememberResume, rememberSavedResumes } =
+    useResumes();
+  const [page, setPage] = useState<PageResult<ResumeItem>>();
+  const [listError, setListError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [details, setDetails] = useState("");
+  function refreshList() {
+    setPage(undefined);
+    setListError("");
+    setRevision((value) => value + 1);
+  }
+  useEffect(() => {
+    const controller = new AbortController();
+    getResumes(pageNumber, pageSize, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        rememberSavedResumes(result.items);
+        setPage(result);
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted)
+          setListError(processingErrorMessage(error));
+      });
+    return () => controller.abort();
+  }, [pageNumber, pageSize, revision, rememberSavedResumes]);
+  const visibleResumes =
+    page?.items.map(
+      (item) =>
+        resumes.find((resume) => resume.publicId === item.publicId) ??
+        registerSavedResume(item),
+    ) ?? [];
   const [upload, setUpload] = useState<true | SessionResume>();
   const [removing, setRemoving] = useState<SessionResume>();
   const [preview, setPreview] = useState<{ name: string; url: string }>();
@@ -58,43 +132,50 @@ export default function ResumesPage() {
         title="My Resumes"
         description="Prepare your experience for your next application."
         action={
-          <Button disabled={!!busy} onClick={() => setUpload(true)}>
-            <Upload size={18} aria-hidden="true" /> Upload resume
-          </Button>
+          <div className="actions">
+            <Button
+              variant="secondary"
+              disabled={!!busy || (!page && !listError)}
+              onClick={refreshList}
+            >
+              Refresh list
+            </Button>
+            <Button disabled={!!busy} onClick={() => setUpload(true)}>
+              <Upload size={18} aria-hidden="true" /> Upload resume
+            </Button>
+          </div>
         }
       />
-      <div className="resume-session-note">
-        <FileText size={20} aria-hidden="true" />
-        <p>
-          <strong>Resumes available in this session</strong>
-          <br />
-          <span className="muted">
-            This collection includes files registered here. A complete saved
-            resume list is not available yet; it resets when you reload or sign
-            out.
-          </span>
-        </p>
-      </div>
       {error && (
         <p role="alert" className="job-error">
           {error}
         </p>
       )}
-      {!resumes.length ? (
+      {listError ? (
+        <JobError message={listError} retry={refreshList} />
+      ) : !page ? (
+        <p role="status">Loading resumes…</p>
+      ) : !visibleResumes.length ? (
         <div className="empty-state">
           <FileText size={36} aria-hidden="true" />
-          <h2>Your next opportunity starts with your CV</h2>
+          <h2>
+            {page.totalPages === 0 && page.pageNumber === 1
+              ? "Your next opportunity starts with your CV"
+              : "No resumes on this page"}
+          </h2>
           <p>
             Upload a resume to follow its reading progress, then use it when you
             apply.
           </p>
           <Button onClick={() => setUpload(true)}>
-            Upload your first resume
+            {page.totalPages === 0
+              ? "Upload your first resume"
+              : "Upload resume"}
           </Button>
         </div>
       ) : (
         <div className="resume-list">
-          {resumes.map((resume) => (
+          {visibleResumes.map((resume) => (
             <article className="card resume-card" key={resume.publicId}>
               <div className="resume-file-heading">
                 <span className="resume-file-icon">
@@ -110,6 +191,13 @@ export default function ResumesPage() {
               </div>
               <ResumeStatus resume={resume} />
               <div className="actions resume-actions">
+                <Button
+                  variant="secondary"
+                  disabled={!!busy}
+                  onClick={() => setDetails(resume.publicId)}
+                >
+                  View details
+                </Button>
                 {resume.contentType === "application/pdf" && (
                   <Button
                     variant="secondary"
@@ -139,18 +227,20 @@ export default function ResumesPage() {
                 >
                   Replace file
                 </Button>
-                {resume.ingestionStatus === "FAILED" && (
+                {resume.ingestionStatus === "FAILED" && resume.storageKey && (
                   <Button
                     variant="secondary"
                     disabled={!!busy}
                     onClick={() =>
                       void action(resume.publicId, async () => {
+                        const storageKey = resume.storageKey;
+                        if (!storageKey) return;
                         const reference = await updateResume(
                           resume.publicId,
                           resume.name,
-                          resume.storageKey,
+                          storageKey,
                         );
-                        rememberResume(reference, resume);
+                        rememberResume(reference, { ...resume, storageKey });
                       })
                     }
                   >
@@ -172,10 +262,28 @@ export default function ResumesPage() {
           ))}
         </div>
       )}
+      {page && <JobPagination page={page} onPage={onPage} />}
+      {details && (
+        <ResumeDetailsDialog
+          key={details}
+          publicId={details}
+          onClose={() => setDetails("")}
+          onFile={(resume, inline) => {
+            setDetails("");
+            void action(resume.publicId, () => openFile(resume, inline));
+          }}
+        />
+      )}
       {upload && (
         <ResumeUploadDialog
           replacing={upload === true ? undefined : upload}
-          onClose={() => setUpload(undefined)}
+          onClose={(saved) => {
+            setUpload(undefined);
+            if (saved) {
+              if (upload === true && pageNumber !== 1) onPage(1);
+              else refreshList();
+            }
+          }}
         />
       )}
       {removing && (
@@ -211,6 +319,7 @@ export default function ResumesPage() {
                   await deleteResume(removing.publicId);
                   forgetResume(removing.publicId);
                   setRemoving(undefined);
+                  refreshList();
                 })
               }
             >

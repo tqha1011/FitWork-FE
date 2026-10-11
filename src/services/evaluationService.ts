@@ -15,14 +15,25 @@ export async function createEvaluation(
   ).data;
 }
 export async function getEvaluation(
-  evaluationPublicId: string,
-  jobPublicId?: string,
+  jobPublicId: string,
   signal?: AbortSignal,
-): Promise<EvaluationDetail | JobOwnerEvaluation> {
-  const path = jobPublicId
-    ? `/applicant-evaluation/jobs/${encodeURIComponent(jobPublicId)}/${encodeURIComponent(evaluationPublicId)}`
-    : `/applicant-evaluation/${encodeURIComponent(evaluationPublicId)}`;
+): Promise<EvaluationDetail> {
   return (
-    await api.get<EvaluationDetail | JobOwnerEvaluation>(path, { signal })
+    await api.get<EvaluationDetail>(
+      `/applicant-evaluation/${encodeURIComponent(jobPublicId)}`,
+      { signal },
+    )
+  ).data;
+}
+export async function getJobOwnerEvaluation(
+  jobPublicId: string,
+  evaluationPublicId: string,
+  signal?: AbortSignal,
+): Promise<JobOwnerEvaluation> {
+  return (
+    await api.get<JobOwnerEvaluation>(
+      `/applicant-evaluation/jobs/${encodeURIComponent(jobPublicId)}/${encodeURIComponent(evaluationPublicId)}`,
+      { signal },
+    )
   ).data;
 }

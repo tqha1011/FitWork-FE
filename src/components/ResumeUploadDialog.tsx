@@ -15,7 +15,7 @@ export default function ResumeUploadDialog({
   onClose,
 }: {
   replacing?: SessionResume;
-  onClose: () => void;
+  onClose: (saved?: boolean) => void;
 }) {
   const { rememberResume } = useResumes();
   const [name, setName] = useState(replacing?.name ?? "");
@@ -59,7 +59,7 @@ export default function ResumeUploadDialog({
         storageKey = upload.storageKey;
         setKey(storageKey);
       }
-      setStage("Registering resume…");
+      setStage("Saving resume…");
       registering = true;
       const reference = replacing
         ? await updateResume(
@@ -74,23 +74,21 @@ export default function ResumeUploadDialog({
             controller.current?.signal,
           );
       if (!reference.publicId || !reference.ingestionPublicId)
-        throw new Error(
-          "The resume was registered but its reference is incomplete.",
-        );
+        throw new Error("Unable to confirm the saved resume.");
       rememberResume(reference, {
         name: name.trim(),
         storageKey,
         contentType,
         size: file.size,
       });
-      onClose();
+      onClose(true);
     } catch (error) {
       if (controller.current?.signal.aborted) return;
       if (
         registering &&
         (isUncertainMutation(error) ||
           (error instanceof Error &&
-            error.message.includes("reference is incomplete")))
+            error.message.includes("Unable to confirm the saved resume")))
       )
         setUncertain(true);
       setError(processingErrorMessage(error, registering));
@@ -108,10 +106,7 @@ export default function ResumeUploadDialog({
       className="job-apply-dialog"
     >
       <form className="stack" onSubmit={submit} noValidate>
-        <p className="muted">
-          Upload a PDF or DOCX up to 5 MiB. We will read the file before it can
-          be evaluated.
-        </p>
+        <p className="muted">PDF or DOCX, up to 5 MiB.</p>
         <fieldset
           className="job-form-fields stack"
           disabled={busy || uncertain}
@@ -161,13 +156,12 @@ export default function ResumeUploadDialog({
         )}
         {uncertain && (
           <p className="notice">
-            The resume may already have been saved. Registration will not be
-            repeated here to avoid duplicates. Keep this message and check with
-            support before uploading again.
+            The resume may already have been saved. Check My Resumes before
+            uploading again.
           </p>
         )}
         <div className="dialog-actions">
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button variant="secondary" disabled={busy} onClick={() => onClose()}>
             Close
           </Button>
           <Button type="submit" disabled={busy || uncertain}>

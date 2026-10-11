@@ -6,6 +6,7 @@ import {
   Files,
   LogOut,
   MoveUpRight,
+  Sparkles,
   UserRound,
 } from "lucide-react";
 import { toast } from "react-toastify";
@@ -67,6 +68,12 @@ export default function JobShell() {
             <Files size={19} aria-hidden="true" />
             {client ? "Applicant Evaluations" : "My Resumes"}
           </NavLink>
+          {!client && (
+            <NavLink to="/freelancer/evaluations">
+              <Sparkles size={19} aria-hidden="true" />
+              My Evaluations
+            </NavLink>
+          )}
           <NavLink to="/account">
             <UserRound size={19} aria-hidden="true" />
             Account

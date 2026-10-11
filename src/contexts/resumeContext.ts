@@ -2,11 +2,21 @@ import { createContext, useContext } from "react";
 import type {
   ResumeIngestionState,
   ResumeReference,
+  ProcessingStatus,
 } from "../types/evaluation";
+import type { ResumeItem } from "../types/resume";
 import type { ConnectionState } from "../services/processingSocket";
-export interface SessionResume extends ResumeReference {
+export interface SessionResume extends Omit<
+  ResumeReference,
+  "ingestionPublicId" | "ingestionStatus"
+> {
+  ingestionPublicId: string | null;
+  ingestionStatus: ProcessingStatus | null;
+  confirmedIngestionStatus?: ProcessingStatus | null;
   name: string;
-  storageKey: string;
+  storageKey?: string;
+  createdAt?: string;
+  updatedAt?: string;
   contentType: string;
   size: number;
   revision: number;
@@ -19,6 +29,7 @@ export interface EvaluationReference {
 }
 export interface ResumeContextValue {
   resumes: SessionResume[];
+  rememberSavedResumes: (items: ResumeItem[]) => void;
   rememberResume: (
     reference: ResumeReference,
     metadata: {

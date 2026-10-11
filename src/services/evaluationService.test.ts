@@ -2,15 +2,58 @@ import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import { AxiosHeaders } from "axios";
 import { api } from "./api.ts";
-import { createEvaluation, getEvaluation } from "./evaluationService.ts";
+import {
+  createEvaluation,
+  getEvaluation,
+  getJobOwnerEvaluation,
+} from "./evaluationService.ts";
 const adapter = api.defaults.adapter;
 afterEach(() => {
   api.defaults.adapter = adapter;
 });
-test("evaluation uses direct response and separate applicant and job-owner routes", async () => {
+test("company evaluation keeps the job-owner route with both public IDs", async () => {
+  const controller = new AbortController();
+  api.defaults.adapter = async (config) => {
+    assert.equal(config.method, "get");
+    assert.equal(
+      config.url,
+      "/applicant-evaluation/jobs/job%2Fpublic/evaluation%2Fpublic",
+    );
+    assert.equal(config.signal, controller.signal);
+    return {
+      config,
+      data: {
+        publicId: "evaluation/public",
+        overallScore: 0,
+        decisionSupportOnly: true,
+      },
+      status: 200,
+      statusText: "OK",
+      headers: new AxiosHeaders(),
+    };
+  };
+  assert.equal(
+    (
+      await getJobOwnerEvaluation(
+        "job/public",
+        "evaluation/public",
+        controller.signal,
+      )
+    ).publicId,
+    "evaluation/public",
+  );
+});
+test("latest applicant evaluation uses the job ID without a body/query and forwards cancellation", async () => {
   const calls: string[] = [];
+  const controller = new AbortController();
   api.defaults.adapter = async (config) => {
     calls.push(`${config.method} ${config.url}`);
+    if (config.method === "get") {
+      assert.equal(config.url, "/applicant-evaluation/job%2Fpublic");
+      assert.equal(config.signal, controller.signal);
+      assert.equal(config.params, undefined);
+      assert.equal(config.data, undefined);
+    }
     if (config.method === "post")
       assert.deepEqual(JSON.parse(config.data), {
         resumePublicId: "resume",
@@ -31,11 +74,12 @@ test("evaluation uses direct response and separate applicant and job-owner route
     (await createEvaluation("resume", "job")).publicId,
     "evaluation",
   );
-  assert.equal((await getEvaluation("evaluation")).overallScore, 0);
-  await getEvaluation("evaluation", "job");
+  assert.equal(
+    (await getEvaluation("job/public", controller.signal)).overallScore,
+    0,
+  );
   assert.deepEqual(calls, [
     "post /applicant-evaluation",
-    "get /applicant-evaluation/evaluation",
-    "get /applicant-evaluation/jobs/job/evaluation",
+    "get /applicant-evaluation/job%2Fpublic",
   ]);
 });

@@ -1,4 +1,7 @@
-import { registerSessionResume } from "../shared/resumeSession";
+import {
+  registerSavedResume,
+  registerSessionResume,
+} from "../shared/resumeSession";
 import { acceptProcessingState } from "../shared/processingState";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import {
@@ -11,6 +14,7 @@ import type {
   ResumeIngestionState,
   ResumeReference,
 } from "../types/evaluation";
+import type { ResumeItem } from "../types/resume";
 import {
   watchProcessing,
   type ConnectionState,
@@ -28,7 +32,9 @@ function ResumeMonitor({
   ) => void;
 }) {
   const { publicId, ingestionPublicId, revision } = resume;
+  const hasIngestion = !!ingestionPublicId && !!resume.ingestionStatus;
   useEffect(() => {
+    if (!ingestionPublicId || !hasIngestion) return;
     const reference = { publicId, ingestionPublicId };
     return watchProcessing(
       "resume",
@@ -43,7 +49,7 @@ function ResumeMonitor({
       (connection: ConnectionState) =>
         update(publicId, ingestionPublicId, { connection }),
     );
-  }, [publicId, ingestionPublicId, revision, update]);
+  }, [publicId, ingestionPublicId, revision, update, hasIngestion]);
   return null;
 }
 export default function ResumeProvider({ children }: { children: ReactNode }) {
@@ -51,13 +57,40 @@ export default function ResumeProvider({ children }: { children: ReactNode }) {
   const [evaluations, setEvaluations] = useState<
     Record<string, EvaluationReference>
   >({});
+  const rememberSavedResumes = useCallback((saved: ResumeItem[]) => {
+    setResumes((items) => {
+      const next = new Map(items.map((item) => [item.publicId, item]));
+      for (const item of saved)
+        next.set(
+          item.publicId,
+          registerSavedResume(item, next.get(item.publicId)),
+        );
+      return [...next.values()];
+    });
+  }, []);
   const update = useCallback(
     (id: string, ingestionId: string, patch: Partial<SessionResume>) => {
       setResumes((items) =>
         items.map((item) =>
           item.publicId === id &&
           item.ingestionPublicId === ingestionId &&
-          (!patch.state || acceptProcessingState(item, item.state, patch.state))
+          // HTTP confirms the terminal outcome for this ingestion. A delayed
+          // socket snapshot cannot replace it, even with another terminal state.
+          (!patch.state ||
+            !["COMPLETED", "FAILED"].includes(
+              item.confirmedIngestionStatus ?? "",
+            ) ||
+            patch.state.status === item.confirmedIngestionStatus) &&
+          // A late join snapshot must not undo completion confirmed by HTTP.
+          (!patch.state ||
+            !["COMPLETED", "FAILED"].includes(item.ingestionStatus ?? "") ||
+            !["PENDING", "PROCESSING"].includes(patch.state.status)) &&
+          (!patch.state ||
+            acceptProcessingState(
+              { publicId: item.publicId, ingestionPublicId: ingestionId },
+              item.state,
+              patch.state,
+            ))
             ? { ...item, ...patch }
             : item,
         ),
@@ -105,11 +138,13 @@ export default function ResumeProvider({ children }: { children: ReactNode }) {
   }, []);
   const rememberEvaluation = useCallback(
     (jobId: string, resume: SessionResume, publicId: string) => {
+      if (!resume.ingestionPublicId) return;
+      const ingestionPublicId = resume.ingestionPublicId;
       setEvaluations((items) => ({
         ...items,
         [evaluationKey(jobId, resume.publicId)]: {
           publicId,
-          ingestionPublicId: resume.ingestionPublicId,
+          ingestionPublicId,
         },
       }));
     },
@@ -119,6 +154,7 @@ export default function ResumeProvider({ children }: { children: ReactNode }) {
     <ResumeContext.Provider
       value={{
         resumes,
+        rememberSavedResumes,
         rememberResume,
         forgetResume,
         reconnectResume,

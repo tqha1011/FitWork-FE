@@ -72,7 +72,7 @@ export default function ApplyJobDialog({
     (submitted ? (selectedResume?.publicId ?? resume?.publicId) : undefined);
   async function syncHistory() {
     setPending(true);
-    setStage("Synchronizing application history…");
+    setStage("Updating applications…");
     setError(undefined);
     try {
       const items = await jobs.refreshHistory();
@@ -155,13 +155,13 @@ export default function ApplyJobDialog({
       if (!readyResume && file) {
         let key = uploadedKey;
         if (!key) {
-          step = "Requesting resume upload URL";
+          step = "Preparing resume upload";
           setStage(`${step}…`);
           const upload = await requestResumeUpload(
             file,
             controller.current?.signal,
           );
-          step = "Uploading resume to storage";
+          step = "Uploading resume";
           setStage(`${step}…`);
           await uploadResumeFile(
             upload.uploadUrl,
@@ -172,7 +172,7 @@ export default function ApplyJobDialog({
           key = upload.storageKey;
           setUploadedKey(key);
         }
-        step = "Registering uploaded resume";
+        step = "Saving resume";
         setStage(`${step}…`);
         registrationStarted = true;
         readyResume = await createResume(
@@ -183,7 +183,7 @@ export default function ApplyJobDialog({
         if (!readyResume.publicId || !readyResume.ingestionPublicId) {
           setRegistrationUncertain(true);
           throw new Error(
-            "The resume may have been saved, but the response is incomplete.",
+            "Unable to confirm the saved resume. Check My Resumes before uploading again.",
           );
         }
         resumeWorkspace.rememberResume(readyResume, {
@@ -208,7 +208,7 @@ export default function ApplyJobDialog({
       setSubmitted(true);
       jobs.confirmApplication(job.publicId);
       jobs.invalidateSearch();
-      step = "Synchronizing application history";
+      step = "Updating applications";
       setStage(`${step}…`);
       try {
         const history = await jobs.refreshHistory();
@@ -231,9 +231,7 @@ export default function ApplyJobDialog({
       if (registrationStarted && isUncertainMutation(error))
         setRegistrationUncertain(true);
       if (applyStarted && isUncertainMutation(error)) {
-        setStage(
-          "Checking all history pages to resolve the uncertain submission…",
-        );
+        setStage("Checking your application…");
         try {
           const history = await jobs.refreshHistory();
           const found = history.find(
@@ -247,7 +245,7 @@ export default function ApplyJobDialog({
             setError(undefined);
           } else
             setError(
-              `${jobErrorMessage(error, true)} All history pages were checked and this Job has no application yet. You may choose to submit again; your created resume will be reused.`,
+              `${jobErrorMessage(error, true)} No application was found for this job. You can submit again.`,
             );
         } catch (historyError) {
           setError(
@@ -353,9 +351,7 @@ export default function ApplyJobDialog({
             </div>
             {resumeWorkspace.resumes.length > 0 && (
               <label className="field">
-                <span className="field-label">
-                  Use a resume from this session
-                </span>
+                <span className="field-label">Use an available resume</span>
                 <select
                   value={selectedId}
                   onChange={(event) => {
@@ -393,17 +389,12 @@ export default function ApplyJobDialog({
                 )}
               </JobField>
             )}
-            {resume && (
-              <p className="notice">
-                Resume registered: {file?.name}. It will be reused if you retry
-                submitting.
-              </p>
-            )}
+            {resume && <p className="notice">Resume: {file?.name}</p>}
           </fieldset>
           {pending && (
             <div className="upload-status" role="status">
               <p>{stage}</p>
-              {stage === "Uploading resume to storage…" && (
+              {stage === "Uploading resume…" && (
                 <>
                   <progress
                     aria-label="Resume upload progress"
@@ -418,8 +409,7 @@ export default function ApplyJobDialog({
           {error && <JobError message={error} />}
           {registrationUncertain && (
             <p className="notice">
-              The CV may already have been registered. Registration is blocked
-              here to avoid creating a duplicate. Check with support before
+              The resume may already have been saved. Check My Resumes before
               uploading again.
             </p>
           )}

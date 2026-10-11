@@ -7,12 +7,63 @@ import {
   requestResumeUpload,
   uploadResumeFile,
   storageClient,
+  getResumes,
+  getResume,
 } from "./resumeService.ts";
 const originalApi = api.defaults.adapter;
 const originalStorage = storageClient.defaults.adapter;
 afterEach(() => {
   api.defaults.adapter = originalApi;
   storageClient.defaults.adapter = originalStorage;
+});
+test("saved resume list sends only pagination and detail uses the resume public ID", async () => {
+  const controller = new AbortController();
+  const item = {
+    publicId: "resume/public",
+    fileName: "Backend CV",
+    fileType: "pdf",
+    fileSize: 204800,
+    createdAt: "2026-10-01T00:00:00Z",
+    updatedAt: "2026-10-02T00:00:00Z",
+    ingestionPublicId: null,
+    ingestionStatus: null,
+  };
+  const calls: string[] = [];
+  api.defaults.adapter = async (config) => {
+    calls.push(`${config.method} ${config.url}`);
+    assert.equal(config.method, "get");
+    assert.equal(config.data, undefined);
+    assert.equal(config.signal, controller.signal);
+    if (config.url === "/resume")
+      assert.deepEqual(config.params, { pageNumber: 1, pageSize: 20 });
+    else assert.equal(config.params, undefined);
+    return {
+      config,
+      data:
+        config.url === "/resume"
+          ? {
+              items: [item],
+              totalPages: 1,
+              pageNumber: 1,
+              pageSize: 20,
+              hasPrevious: false,
+              hasNext: false,
+            }
+          : item,
+      status: 200,
+      statusText: "OK",
+      headers: new AxiosHeaders(),
+    };
+  };
+  assert.equal(
+    (await getResumes(1, 20, controller.signal)).items[0].fileName,
+    "Backend CV",
+  );
+  assert.equal(
+    (await getResume("resume/public", controller.signal)).ingestionStatus,
+    null,
+  );
+  assert.deepEqual(calls, ["get /resume", "get /resume/resume%2Fpublic"]);
 });
 test("resume upload requests exact metadata and storage PUT has MIME with no API credentials", async () => {
   const file = new File(["PDF"], "resume.pdf", { type: "application/pdf" });

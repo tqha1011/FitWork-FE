@@ -20,11 +20,11 @@ export default function EvaluationResult({
           <span>/100</span>
         </p>
       </div>
-      <p>{evidence.explanation}</p>
+      {evidence.explanation && <p>{evidence.explanation}</p>}
       <div className="evaluation-summary">
         <div>
           <h3>Strengths</h3>
-          {evidence.strengths.length ? (
+          {evidence.strengths?.length ? (
             <ul>
               {evidence.strengths.map((text, index) => (
                 <li key={index}>{text}</li>
@@ -36,7 +36,7 @@ export default function EvaluationResult({
         </div>
         <div>
           <h3>Gaps to discuss</h3>
-          {evidence.gaps.length ? (
+          {evidence.gaps?.length ? (
             <ul>
               {evidence.gaps.map((text, index) => (
                 <li key={index}>{text}</li>
@@ -65,10 +65,6 @@ export default function EvaluationResult({
         </dl>
       ) : (
         <>
-          <p className="muted">
-            Contributions are points toward the overall score. These criteria
-            reflect the job’s structured skills.
-          </p>
           <div className="evaluation-table-scroll">
             <table className="evaluation-table">
               <caption>Score contributions</caption>
@@ -117,25 +113,28 @@ export default function EvaluationResult({
               <p className="muted">
                 Contribution: {criterion.scoreContribution} points
               </p>
-              {criterion.evidence.map((item, index) => (
-                <blockquote key={index}>{item.snippet}</blockquote>
-              ))}
+              {criterion.evidence.length ? (
+                criterion.evidence.map((item, index) => (
+                  <figure className="evaluation-citation" key={index}>
+                    <blockquote>{item.snippet}</blockquote>
+                    <figcaption className="field-hint">
+                      Section: {item.section}
+                    </figcaption>
+                  </figure>
+                ))
+              ) : (
+                <p className="muted">
+                  No resume citations reported for this criterion.
+                </p>
+              )}
             </article>
           ))}
         </div>
       )}
       {owner && (
         <>
-          <p className="notice">
-            Use this result to support your review and discussion with the
-            applicant.
-          </p>
           <details className="redacted-resume">
             <summary>Resume text used for evaluation</summary>
-            <p className="muted">
-              Redaction is best effort; this text may still contain personal
-              information.
-            </p>
             {owner.resumeRedaction.redactedResumeText !== null ? (
               <pre>{owner.resumeRedaction.redactedResumeText}</pre>
             ) : (

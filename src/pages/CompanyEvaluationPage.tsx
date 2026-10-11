@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import axios from "axios";
 import { Button, PageHeader } from "../components/ui";
 import EvaluationResult from "../components/EvaluationResult";
-import { getEvaluation } from "../services/evaluationService";
+import { getJobOwnerEvaluation } from "../services/evaluationService";
 import { processingErrorMessage } from "../shared/processingErrorMessage";
 import type { JobOwnerEvaluation } from "../types/evaluation";
 export default function CompanyEvaluationPage() {
@@ -31,11 +31,17 @@ function CompanyEvaluation({
   useEffect(() => {
     if (!jobPublicId || !evaluationPublicId) return;
     const controller = new AbortController();
-    void getEvaluation(evaluationPublicId, jobPublicId, controller.signal)
+    void getJobOwnerEvaluation(
+      jobPublicId,
+      evaluationPublicId,
+      controller.signal,
+    )
       .then((detail) => {
         if (!controller.signal.aborted) {
           if (!("decisionSupportOnly" in detail))
-            throw new Error("The job-owner evaluation response is incomplete.");
+            throw new Error(
+              "Unable to load this evaluation. Please try again.",
+            );
           setResult(detail);
         }
       })
@@ -45,7 +51,7 @@ function CompanyEvaluation({
             setForbidden(true);
           setError(
             axios.isAxiosError(error) && error.response?.status === 409
-              ? "No completed result is available. Task status is not exposed for company accounts. Refresh later."
+              ? "No completed result is available yet. Refresh later."
               : processingErrorMessage(error),
           );
         }
@@ -80,11 +86,6 @@ function CompanyEvaluation({
       {!jobPublicId || !evaluationPublicId ? (
         <div className="empty-state">
           <h2>Applicant results are not available yet</h2>
-          <p>
-            The backend needs to supply the job’s applicant list and evaluation
-            references. A result can be opened when both references are
-            supplied.
-          </p>
         </div>
       ) : (
         <>

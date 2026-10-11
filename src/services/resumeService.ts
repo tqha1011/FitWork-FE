@@ -1,7 +1,35 @@
 import axios from "axios";
 import { api } from "./api.ts";
 import { resumeContentType } from "../shared/jobValidation.ts";
-import type { ResumeResponse, ResumeUploadResponse } from "../types/job.ts";
+import type {
+  PageResult,
+  ResumeResponse,
+  ResumeUploadResponse,
+} from "../types/job.ts";
+import type { ResumeItem } from "../types/resume.ts";
+
+export async function getResumes(
+  pageNumber = 1,
+  pageSize = 20,
+  signal?: AbortSignal,
+): Promise<PageResult<ResumeItem>> {
+  return (
+    await api.get<PageResult<ResumeItem>>("/resume", {
+      params: { pageNumber, pageSize },
+      signal,
+    })
+  ).data;
+}
+export async function getResume(
+  resumePublicId: string,
+  signal?: AbortSignal,
+): Promise<ResumeItem> {
+  return (
+    await api.get<ResumeItem>(`/resume/${encodeURIComponent(resumePublicId)}`, {
+      signal,
+    })
+  ).data;
+}
 
 // A separate transport keeps API interceptors, JWT and credentialed cookies
 // off signed storage requests. Never attach API headers to this client.

@@ -49,7 +49,7 @@ export interface EvidenceV1 {
   gaps: string[];
   explanation: string;
 }
-export interface EvidenceV2 extends Omit<EvidenceV1, "schemaVersion"> {
+export interface EvidenceV2 extends Partial<Omit<EvidenceV1, "schemaVersion">> {
   schemaVersion: 2;
   criteria: CriterionResult[];
 }

@@ -16,6 +16,6 @@ export function authErrorMessage(
   if (isAxiosError(error) && !error.response)
     return "We couldn't reach FitWork. Check your connection and try again.";
   return action === "logout"
-    ? "You're signed out on this device, but we couldn't end the server session. Check your connection before signing in again."
+    ? "Sign-out could not be completed. Check your connection and try again."
     : "We couldn't complete your request. Please try again.";
 }

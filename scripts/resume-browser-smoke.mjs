@@ -25,6 +25,9 @@ const state = {
   applications: [],
   revision: 1,
   resumeStatus: "COMPLETED",
+  resumeActive: false,
+  resumeName: "",
+  joinResumeStatus: undefined,
   requests: [],
   joinCount: 0,
   evaluationPosts: 0,
@@ -33,6 +36,16 @@ const state = {
   downloads: 0,
   evaluationStatus: "FAILED",
 };
+const savedResume = () => ({
+  publicId: resumeId,
+  fileName: state.resumeName,
+  fileType: "pdf",
+  fileSize: 16,
+  createdAt: "2026-10-01T00:00:00Z",
+  updatedAt: "2026-10-02T00:00:00Z",
+  ingestionPublicId: `ingestion-${state.revision}`,
+  ingestionStatus: state.resumeStatus,
+});
 const currentResume = () => ({
   resumePublicId: resumeId,
   ingestionPublicId: `ingestion-${state.revision}`,
@@ -47,7 +60,13 @@ io.of("/resume").on("connection", (socket) => {
   socket.on("resume-join", ({ resumePublicId }) => {
     assert.equal(resumePublicId, resumeId);
     state.joinCount++;
-    socket.emit("resume-join", { joined: true, current: currentResume() });
+    socket.emit("resume-join", {
+      joined: true,
+      current: {
+        ...currentResume(),
+        status: state.joinResumeStatus ?? state.resumeStatus,
+      },
+    });
     socket.emit("ingestion-process-notify", {
       ...currentResume(),
       ingestionPublicId: "obsolete",
@@ -222,8 +241,19 @@ await context.route("http://localhost:3000/api/**", async (route) => {
       },
       201,
     );
+  if (path === "/api/resume" && method === "GET")
+    return send({
+      items: state.resumeActive ? [savedResume()] : [],
+      totalPages: state.resumeActive ? 1 : 0,
+      pageNumber: Number(url.searchParams.get("pageNumber")),
+      pageSize: Number(url.searchParams.get("pageSize")),
+      hasPrevious: false,
+      hasNext: false,
+    });
   if (path === "/api/resume" && method === "POST") {
     if (state.creationFails) return send({ message: "Queue unavailable" }, 500);
+    state.resumeActive = true;
+    state.resumeName = body.name;
     return send(
       {
         publicId: resumeId,
@@ -238,7 +268,12 @@ await context.route("http://localhost:3000/api/**", async (route) => {
     return send({ downloadUrl: "https://storage.example/download" });
   }
   if (path === `/api/resume/${resumeId}`) {
-    if (method === "DELETE") return send(undefined, 204);
+    if (method === "DELETE") {
+      state.resumeActive = false;
+      return send(undefined, 204);
+    }
+    if (method === "GET") return send(savedResume());
+    state.resumeName = body.name;
     assert.equal(typeof body.name, "string");
     assert.equal(typeof body.storageKey, "string");
     return send({
@@ -255,7 +290,7 @@ await context.route("http://localhost:3000/api/**", async (route) => {
     state.evaluationStatus = state.detailReady ? "COMPLETED" : "FAILED";
     return send({ publicId: evaluationId }, 201);
   }
-  if (path === `/api/applicant-evaluation/${evaluationId}`)
+  if (path === `/api/applicant-evaluation/${jobId}`)
     return state.detailReady
       ? send(v2)
       : send({ message: "Applicant evaluation is not completed" }, 409);
@@ -322,6 +357,26 @@ try {
     .getByRole("button", { name: "Close preview", exact: true })
     .click();
   assert.equal(state.downloads, 2);
+  // A stale live join must not regress completion restored from HTTP.
+  for (const status of ["PROCESSING", "FAILED"]) {
+    state.joinResumeStatus = status;
+    const joinsBeforeReload = state.joinCount;
+    await page.reload();
+    await page.getByText("Ready to use", { exact: true }).waitFor();
+    await page.waitForFunction(
+      () => !document.body.textContent.includes("Updating status…"),
+    );
+    assert.ok(state.joinCount > joinsBeforeReload);
+    assert.equal(
+      await page.getByText("Reading resume", { exact: true }).count(),
+      0,
+    );
+    assert.equal(
+      await page.getByText("Reading failed", { exact: true }).count(),
+      0,
+    );
+  }
+  state.joinResumeStatus = undefined;
   state.revision = 2;
   state.resumeStatus = "FAILED";
   await page.getByRole("button", { name: "Replace file" }).click();
@@ -334,14 +389,12 @@ try {
   await page.getByRole("button", { name: "Retry reading" }).click();
   await page.getByText("Ready to use", { exact: true }).waitFor();
   await page
-    .getByText("Connecting to live updates…", { exact: true })
+    .getByText("Updating status…", { exact: true })
     .waitFor({ state: "hidden" });
   assert.ok(state.joinCount >= 3);
   await page.getByRole("link", { name: "Find Jobs", exact: true }).click();
   await page.getByRole("button", { name: "Apply", exact: true }).click();
-  await page
-    .getByLabel("Use a resume from this session")
-    .selectOption(resumeId);
+  await page.getByLabel("Use an available resume").selectOption(resumeId);
   await page
     .getByLabel("Cover letter", { exact: true })
     .fill("I have relevant experience.");
@@ -371,8 +424,75 @@ try {
     .getByRole("link", { name: "My Applications", exact: true })
     .click();
   await page
+    .getByRole("button", { name: "View evaluation", exact: true })
+    .click();
+  await page
     .getByRole("heading", { name: "Overall fit", exact: true })
     .waitFor();
+  // A known evaluation remains readable even when its resume is replaced/deleted.
+  await page
+    .getByRole("button", { name: "Reconnect", exact: true })
+    .waitFor({ state: "hidden" });
+  state.detailReady = false;
+  await page.getByRole("button", { name: "Refresh result" }).click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "No completed result" })
+    .waitFor();
+  assert.equal(
+    await page
+      .getByRole("status")
+      .filter({ hasText: "Evaluation completed. Loading the result" })
+      .count(),
+    0,
+    "A completed older socket snapshot must not describe the newer pending evaluation",
+  );
+  state.detailReady = true;
+  await page.getByRole("button", { name: "Refresh result" }).click();
+  await page.getByText("Review the skills evidence", { exact: true }).waitFor();
+  await page.getByRole("link", { name: "My Resumes", exact: true }).click();
+  state.revision = 3;
+  await page.getByRole("button", { name: "Replace file" }).click();
+  await page.getByLabel("Resume file").setInputFiles(file);
+  await page.getByLabel("Resume name").fill("Updated CV");
+  await page.getByRole("button", { name: "Save replacement" }).click();
+  await page.getByText("Ready to use", { exact: true }).waitFor();
+  await page
+    .getByRole("link", { name: "My Applications", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "View evaluation", exact: true })
+    .waitFor();
+  await page.getByRole("link", { name: "My Resumes", exact: true }).click();
+  await page.getByRole("button", { name: "Delete Updated CV" }).click();
+  await page
+    .getByRole("button", { name: "Delete resume", exact: true })
+    .click();
+  await page
+    .getByRole("heading", { name: "Your next opportunity starts with your CV" })
+    .waitFor();
+  await page
+    .getByRole("link", { name: "My Applications", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "View evaluation", exact: true })
+    .click();
+  assert.equal(new URL(page.url()).pathname, "/freelancer/applications");
+  await page.getByText("Review the skills evidence", { exact: true }).waitFor();
+  await page.reload();
+  await page
+    .getByRole("button", { name: "View evaluation", exact: true })
+    .click();
+  await page.getByText("Review the skills evidence", { exact: true }).waitFor();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Evaluate this application", exact: true })
+      .count(),
+    0,
+  );
+  // Reload clears session resume references; direct result access remains available.
+  await page.goto(`${base}/freelancer/evaluations/${jobId}`);
+  await page.getByText("Review the skills evidence", { exact: true }).waitFor();
   await page.setViewportSize({ width: 375, height: 812 });
   assert.equal(
     await page.evaluate(
@@ -385,6 +505,8 @@ try {
     fullPage: true,
   });
   await page.getByRole("link", { name: "My Resumes", exact: true }).click();
+  await upload("Updated CV");
+  await page.getByText("Ready to use", { exact: true }).waitFor();
   await page.screenshot({
     path: `${output}/resumes-mobile.png`,
     fullPage: true,
@@ -444,6 +566,7 @@ try {
           "failed evaluation retry + zero V2 result",
           "criterion ID matching",
           "application history result",
+          "inline by job ID + replacement/deletion/reload without resume references",
           "375px layout",
           "DELETE 204",
           "uncertain create blocks retry",

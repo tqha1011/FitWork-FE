@@ -9,6 +9,7 @@ import type { AccountRole } from "./types/auth";
 import ResumeProvider from "./contexts/ResumeProvider";
 import ResumesPage from "./pages/ResumesPage";
 import CompanyEvaluationPage from "./pages/CompanyEvaluationPage";
+import ApplicantEvaluationPage from "./pages/ApplicantEvaluationPage";
 import JobProvider from "./contexts/JobProvider";
 import { getSessionGeneration } from "./services/authSession";
 import JobShell from "./components/JobShell";
@@ -98,6 +99,14 @@ export default function App() {
                 />
               </Route>
               <Route element={<ProtectedRoute role="freelancer" />}>
+                <Route
+                  path="/freelancer/evaluations"
+                  element={<ApplicantEvaluationPage />}
+                />
+                <Route
+                  path="/freelancer/evaluations/:jobPublicId"
+                  element={<ApplicantEvaluationPage />}
+                />
                 <Route path="/freelancer/resumes" element={<ResumesPage />} />
                 <Route
                   path="/freelancer/applications"
