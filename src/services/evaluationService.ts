@@ -17,11 +17,15 @@ export async function createEvaluation(
 export async function getEvaluation(
   jobPublicId: string,
   signal?: AbortSignal,
+  evaluationPublicId?: string,
 ): Promise<EvaluationDetail> {
   return (
     await api.get<EvaluationDetail>(
       `/applicant-evaluation/${encodeURIComponent(jobPublicId)}`,
-      { signal },
+      {
+        signal,
+        ...(evaluationPublicId ? { params: { evaluationPublicId } } : {}),
+      },
     )
   ).data;
 }

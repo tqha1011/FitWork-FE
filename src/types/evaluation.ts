@@ -54,6 +54,7 @@ export interface EvidenceV2 extends Partial<Omit<EvidenceV1, "schemaVersion">> {
   criteria: CriterionResult[];
 }
 export interface EvaluationDetail {
+  source?: "SAMPLE" | "LIVE";
   publicId: string;
   overallScore: number;
   scoreBreakdown: BreakdownV1 | BreakdownV2;

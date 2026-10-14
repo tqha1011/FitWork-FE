@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   MoveUpRight,
   PenTool,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "../components/ui";
 import { useAuth } from "../contexts/authContext";
@@ -57,7 +58,12 @@ function AuthScreen({ signup }: { signup: boolean }) {
   const errorSummary = useRef<HTMLDivElement>(null);
 
   if (session)
-    return <Navigate to={`/${session.user.role}/dashboard`} replace />;
+    return (
+      <Navigate
+        to={session.demo ? "/demo" : `/${session.user.role}/dashboard`}
+        replace
+      />
+    );
 
   const inputState = (field: keyof AuthFieldErrors) => ({
     id: field,
@@ -402,6 +408,15 @@ function AuthScreen({ signup }: { signup: boolean }) {
                 <ArrowRight size={18} aria-hidden="true" />
               )}
             </Button>
+            {!signup && (
+              <Link
+                to="/demo"
+                className="button button-secondary auth-demo-entry"
+              >
+                <Sparkles size={18} aria-hidden="true" />
+                Try demo
+              </Link>
+            )}
             <p className="auth-switch">
               {signup
                 ? "Already have an account? "

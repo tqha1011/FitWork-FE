@@ -196,3 +196,42 @@ test("overdue updates report uncertainty without inventing worker failure", (con
     clearAccessToken();
   }
 });
+
+test("role transition disconnects old sockets and ignores queued old-generation notifications", async () => {
+  const { beginSessionTransition } = await import("./authSession.ts");
+  authenticate("before-switch");
+  const sockets: FakeSocket[] = [];
+  const accepted: unknown[] = [];
+  const stop = watchProcessing(
+    "evaluation",
+    "evaluation",
+    (state) => accepted.push(state),
+    () => {},
+    () => {
+      const socket = new FakeSocket();
+      sockets.push(socket);
+      return socket;
+    },
+  );
+  const queued = sockets[0].listeners.get("evaluation-score-notify");
+  try {
+    beginSessionTransition();
+    assert.equal(sockets[0].disconnected, true);
+    queued?.({
+      evaluationPublicId: "evaluation",
+      status: "COMPLETED",
+      overallScore: 99,
+      updatedAt: new Date().toISOString(),
+    } as never);
+    assert.deepEqual(accepted, []);
+    authenticate("after-switch");
+    assert.equal(
+      sockets.length,
+      1,
+      "Old rooms must not rejoin under a different role",
+    );
+  } finally {
+    stop();
+    clearAccessToken();
+  }
+});

@@ -1,6 +1,10 @@
 import { io } from "socket.io-client";
 import { api, API_BASE_URL, refreshAccessToken } from "./api.ts";
-import { getAuthSession, subscribeAuthSession } from "./authSession.ts";
+import {
+  getAuthSession,
+  getSessionGeneration,
+  subscribeAuthSession,
+} from "./authSession.ts";
 import { acceptProcessingState } from "../shared/processingState.ts";
 import type {
   EvaluationState,
@@ -21,7 +25,7 @@ export interface ProcessingSocket {
 }
 type SocketFactory = (
   url: string,
-  options: { auth: { token: string }; autoConnect: false },
+  options: { auth: { token: string }; autoConnect: false; path: string },
 ) => ProcessingSocket;
 
 export function watchProcessing(
@@ -42,7 +46,12 @@ export function watchProcessing(
     typeof target === "string"
       ? { evaluationPublicId: target }
       : { resumePublicId: target.publicId };
+  const generation = getSessionGeneration();
   let stopped = false;
+  const active = () =>
+    !stopped &&
+    generation === getSessionGeneration() &&
+    !getAuthSession()?.transitioning;
   let latest: State | undefined;
   let socket: ProcessingSocket | undefined;
   let token: string | undefined;
@@ -53,11 +62,11 @@ export function watchProcessing(
   const arm = () => {
     clearTimer();
     timer = setTimeout(() => {
-      if (!stopped) onConnection("uncertain");
+      if (active()) onConnection("uncertain");
     }, 20000);
   };
   const accept = (next: State) => {
-    if (stopped || !acceptProcessingState(target, latest, next)) return;
+    if (!active() || !acceptProcessingState(target, latest, next)) return;
     latest = next;
     clearTimer();
     onConnection("connected");
@@ -66,7 +75,7 @@ export function watchProcessing(
   };
   const connect = () => {
     const session = getAuthSession();
-    if (!session || stopped) return;
+    if (!session || !active()) return;
     if (session.accessToken === token) return;
     token = session.accessToken;
     socket?.removeAllListeners();
@@ -74,9 +83,10 @@ export function watchProcessing(
     socket = factory(`${origin}/${kind}`, {
       auth: { token },
       autoConnect: false,
+      path: "/socket.io",
     });
     socket.on(join, ((data: { joined: boolean; current?: State }) => {
-      if (stopped) return;
+      if (!active()) return;
       if (!data.joined) {
         clearTimer();
         onConnection("denied");
@@ -88,20 +98,20 @@ export function watchProcessing(
     }) as (...args: never[]) => void);
     socket.on(notify, accept as (...args: never[]) => void);
     socket.on("connect", () => {
-      if (!stopped) {
+      if (active()) {
         onConnection("connecting");
         socket?.emit(join, payload);
         arm();
       }
     });
     socket.on("disconnect", () => {
-      if (!stopped) {
+      if (active()) {
         clearTimer();
         onConnection("uncertain");
       }
     });
     socket.on("connect_error", () => {
-      if (!stopped) {
+      if (active()) {
         clearTimer();
         onConnection("uncertain");
       }
@@ -111,7 +121,9 @@ export function watchProcessing(
     socket.connect();
   };
   const unsubscribe = subscribeAuthSession(() => {
-    if (!getAuthSession()) {
+    if (!getAuthSession() || !active()) {
+      token = undefined;
+      socket?.removeAllListeners();
       socket?.disconnect();
       clearTimer();
       onConnection("uncertain");
@@ -122,7 +134,7 @@ export function watchProcessing(
     void refreshAccessToken()
       .then(connect)
       .catch(() => {
-        if (!stopped) onConnection("uncertain");
+        if (active()) onConnection("uncertain");
       });
   } else connect();
   return () => {

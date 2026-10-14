@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { CanceledError } from "axios";
 import type { AxiosError, InternalAxiosRequestConfig } from "axios";
 import type { TokenResponse } from "../types/auth.ts";
 import {
@@ -7,6 +7,7 @@ import {
   getAccessToken,
   getAuthSession,
   getSessionGeneration,
+  getSessionSignal,
   setAuthSession,
 } from "./authSession.ts";
 export { clearAccessToken, getAccessToken } from "./authSession.ts";
@@ -25,17 +26,28 @@ export const api = axios.create({
 });
 
 function isAuthEndpoint(url = ""): boolean {
-  return /\/auth\/(?:register|login|refresh|logout)(?:[/?#]|$)/.test(url);
+  return /\/auth\/(?:register|login|refresh|logout|demo)(?:[/?#]|$)/.test(url);
 }
 let refreshFlight: Promise<TokenResponse> | null = null;
+let refreshCookie: { token?: string } | undefined;
 export function refreshAccessToken(): Promise<TokenResponse> {
+  if (
+    getAuthSession()?.demo &&
+    getAuthSession()!.demo!.expiresAt <= Date.now()
+  ) {
+    clearAccessToken();
+    return Promise.reject(new Error("Demo expired — Start new demo"));
+  }
   if (refreshFlight) return refreshFlight;
   if (!canRefreshSession())
     return Promise.reject(new Error("Please sign in again."));
   const generation = getSessionGeneration();
+  const cookie: { token?: string } = {};
+  refreshCookie = cookie;
   refreshFlight = api
     .post<TokenResponse>("/auth/refresh")
     .then(({ data }) => {
+      cookie.token = data.accessToken;
       setAuthSession(data, generation);
       return data;
     })
@@ -45,21 +57,35 @@ export function refreshAccessToken(): Promise<TokenResponse> {
     })
     .finally(() => {
       refreshFlight = null;
+      refreshCookie = undefined;
     });
   return refreshFlight;
 }
 // Wait so a rotating Set-Cookie cannot land after login/logout.
-export async function settleRefresh(): Promise<void> {
-  await refreshFlight?.catch(() => undefined);
+export async function settleRefresh(): Promise<string | undefined> {
+  const flight = refreshFlight;
+  const cookie = refreshCookie;
+  await flight?.catch(() => undefined);
+  return flight ? cookie?.token : undefined;
 }
 
 api.interceptors.request.use(async (config: SessionRequestConfig) => {
   if (isAuthEndpoint(config.url)) {
-    config.headers.delete("Authorization");
+    if (!/\/auth\/(?:logout|demo\/switch)(?:[/?#]|$)/.test(config.url ?? ""))
+      config.headers.delete("Authorization");
     return config;
   }
   config._sessionGeneration = getSessionGeneration();
   const session = getAuthSession();
+  if (session?.demo && session.demo.expiresAt <= Date.now()) {
+    clearAccessToken();
+    throw new CanceledError("Demo expired — Start new demo");
+  }
+  if (session?.transitioning) throw new CanceledError("Session is changing");
+  if (session)
+    config.signal = config.signal
+      ? AbortSignal.any([config.signal as AbortSignal, getSessionSignal()])
+      : getSessionSignal();
   if (session && session.expiresAt <= Date.now()) await refreshAccessToken();
   const token = getAccessToken();
   if (token) config.headers.set("Authorization", `Bearer ${token}`);
@@ -68,9 +94,23 @@ api.interceptors.request.use(async (config: SessionRequestConfig) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const config = response.config as SessionRequestConfig;
+    if (
+      !isAuthEndpoint(config.url) &&
+      config._sessionGeneration !== getSessionGeneration()
+    )
+      throw new CanceledError("Session has changed");
+    return response;
+  },
   async (error: AxiosError) => {
     const config = error.config as SessionRequestConfig | undefined;
+    if (
+      config &&
+      !isAuthEndpoint(config.url) &&
+      config._sessionGeneration !== getSessionGeneration()
+    )
+      throw new CanceledError("Session has changed");
     if (error.response?.status !== 401 || !config || isAuthEndpoint(config.url))
       throw error;
     if (config._sessionGeneration !== getSessionGeneration()) throw error;

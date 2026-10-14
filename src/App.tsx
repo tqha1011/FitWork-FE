@@ -4,6 +4,7 @@ import { ToastContainer } from "react-toastify";
 import AuthProvider from "./contexts/AuthProvider";
 import { useAuth } from "./contexts/authContext";
 import { AuthPage } from "./pages/AuthPages";
+import DemoPage from "./pages/DemoPage";
 import AccountPage from "./pages/AccountPage";
 import type { AccountRole } from "./types/auth";
 import ResumeProvider from "./contexts/ResumeProvider";
@@ -29,6 +30,7 @@ function ProtectedRoute({ role }: { role?: AccountRole }) {
       </main>
     );
   if (!session) return <Navigate to="/auth/sign-in" replace />;
+  if (session.demo) return <Navigate to="/demo" replace />;
   if (role && session.user.role !== role)
     return <Navigate to="/jobs" replace />;
   return <Outlet />;
@@ -52,6 +54,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/demo" element={<DemoPage />} />
           <Route path="/" element={<Navigate to="/auth/sign-in" replace />} />
           <Route path="/auth/sign-in" element={<AuthPage />} />
           <Route path="/auth/sign-up" element={<AuthPage />} />
