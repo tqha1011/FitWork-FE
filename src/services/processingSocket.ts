@@ -1,5 +1,5 @@
 import { io } from "socket.io-client";
-import { api, refreshAccessToken } from "./api.ts";
+import { api, API_BASE_URL, refreshAccessToken } from "./api.ts";
 import { getAuthSession, subscribeAuthSession } from "./authSession.ts";
 import { acceptProcessingState } from "../shared/processingState.ts";
 import type {
@@ -32,7 +32,7 @@ export function watchProcessing(
   factory: SocketFactory = io as SocketFactory,
 ): () => void {
   const origin = new URL(
-    api.defaults.baseURL ?? "http://localhost:3000/api",
+    api.defaults.baseURL ?? API_BASE_URL,
     window.location.origin,
   ).origin;
   const join = `${kind}-join`;
