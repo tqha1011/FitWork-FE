@@ -146,7 +146,8 @@ test("logout handles an empty 204 and an in-flight refresh cannot restore the se
       return response(config, { accessToken: token(), expiresIn: 900 });
     }
     assert.equal(config.url, "/auth/logout");
-    assert.equal(config.headers.get("Authorization"), undefined);
+    assert.equal(config.headers.get("Authorization"), `Bearer ${token()}`);
+    assert.ok(getAuthSession());
     return response(config, "", 204);
   };
   await login({ email: "a@example.com", password: "old" });

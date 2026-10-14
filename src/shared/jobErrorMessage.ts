@@ -6,9 +6,9 @@ export function isUncertainMutation(error: unknown): boolean {
 }
 export function jobErrorMessage(error: unknown, mutation = false): string {
   const status = isAxiosError(error) ? error.response?.status : undefined;
-  let message =
+  const message =
     mutation && isUncertainMutation(error)
-      ? "The result is uncertain. Your request may have succeeded. It was not sent again automatically."
+      ? "Your request may have succeeded. Check your saved changes before trying again."
       : status === 400
         ? "Some values were not accepted. Check your entries and try again."
         : status === 401
@@ -16,17 +16,11 @@ export function jobErrorMessage(error: unknown, mutation = false): string {
           : status === 403
             ? "You do not have permission to perform this action."
             : status === 404
-              ? "The requested job, resume or reference information is unavailable."
+              ? "The requested information is unavailable."
               : status && status >= 500
                 ? "FitWork is temporarily unavailable. Please retry."
                 : error instanceof Error && !isAxiosError(error)
                   ? error.message
                   : "We could not reach FitWork. Check your connection and retry.";
-  const requestId = isAxiosError(error)
-    ? Object.entries(error.response?.headers ?? {}).find(
-        ([name]) => name.toLowerCase() === "x-request-id",
-      )?.[1]
-    : undefined;
-  if (typeof requestId === "string") message += ` Request ID: ${requestId}`;
   return message;
 }

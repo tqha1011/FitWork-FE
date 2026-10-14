@@ -5,7 +5,11 @@ import {
   type ReactNode,
 } from "react";
 import { AuthContext } from "./authContext";
-import { getAuthSession, subscribeAuthSession } from "../services/authSession";
+import {
+  clearAccessToken,
+  getAuthSession,
+  subscribeAuthSession,
+} from "../services/authSession";
 import { initializeSession } from "../services/authService";
 import { refreshAccessToken } from "../services/api";
 
@@ -22,7 +26,7 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
   useEffect(() => {
-    if (!session) return;
+    if (!session || session.transitioning) return;
     const timer = window.setTimeout(
       () => {
         void refreshAccessToken().catch(() => undefined);
@@ -31,6 +35,15 @@ export default function AuthProvider({ children }: { children: ReactNode }) {
     );
     return () => window.clearTimeout(timer);
   }, [session]);
+  const demoDeadline = session?.demo?.expiresAt;
+  useEffect(() => {
+    if (!demoDeadline) return;
+    const timer = window.setTimeout(
+      clearAccessToken,
+      Math.max(0, demoDeadline - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [demoDeadline]);
   return (
     <AuthContext.Provider value={{ session, initializing }}>
       {children}

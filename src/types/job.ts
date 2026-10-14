@@ -1,3 +1,4 @@
+import type { ProcessingStatus } from "./evaluation.ts";
 export interface ReferenceItem {
   id: number;
   name: string;
@@ -90,5 +91,5 @@ export interface ResumeUploadResponse {
 export interface ResumeResponse {
   publicId: string;
   ingestionPublicId: string;
-  ingestionStatus: string;
+  ingestionStatus: ProcessingStatus;
 }

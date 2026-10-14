@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
+import ApplicantEvaluation from "./ApplicantEvaluation";
+import ResumeStatus from "./ResumeStatus";
+import { useResumes } from "../contexts/resumeContext";
 import { Button, Dialog } from "./ui";
 import { JobError, JobField } from "./JobUi";
 import { formatJobDate } from "../shared/jobFormatters";
@@ -30,6 +33,12 @@ export default function ApplyJobDialog({
   onClose: () => void;
 }) {
   const jobs = useJobs();
+  const resumeWorkspace = useResumes();
+  const [selectedId, setSelectedId] = useState("");
+  const [registrationUncertain, setRegistrationUncertain] = useState(false);
+  const selectedResume = resumeWorkspace.resumes.find(
+    (item) => item.publicId === selectedId,
+  );
   const [file, setFile] = useState<File>();
   const [resume, setResume] = useState<ResumeResponse>();
   const [uploadedKey, setUploadedKey] = useState<string>();
@@ -55,9 +64,15 @@ export default function ApplyJobDialog({
     jobs.confirmedJobs.has(job.publicId) ||
     jobs.applications.some((item) => item.jobPublicId === job.publicId);
   const successful = submitted || alreadyApplied;
+  const confirmedApplication =
+    application ??
+    jobs.applications.find((item) => item.jobPublicId === job.publicId);
+  const evaluationResumeId =
+    confirmedApplication?.resumePublicId ??
+    (submitted ? (selectedResume?.publicId ?? resume?.publicId) : undefined);
   async function syncHistory() {
     setPending(true);
-    setStage("Synchronizing application history…");
+    setStage("Updating applications…");
     setError(undefined);
     try {
       const items = await jobs.refreshHistory();
@@ -78,6 +93,7 @@ export default function ApplyJobDialog({
   }
   function selectFile(next?: File) {
     setError(undefined);
+    setSelectedId("");
     setResume(undefined);
     setUploadedKey(undefined);
     setProgress(0);
@@ -96,7 +112,13 @@ export default function ApplyJobDialog({
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending || successful || jobs.historyState !== "ready") return;
+    if (
+      pending ||
+      successful ||
+      registrationUncertain ||
+      jobs.historyState !== "ready"
+    )
+      return;
     const form = new FormData(event.currentTarget);
     const valid = validateApplication({
       coverLetter: String(form.get("coverLetter") ?? ""),
@@ -104,7 +126,8 @@ export default function ApplyJobDialog({
       estimatedDay: String(form.get("estimatedDay") ?? ""),
     });
     const fieldErrors = { ...valid.errors };
-    if (!file && !resume) fieldErrors.resume = "Choose a PDF or DOCX resume.";
+    if (!file && !resume && !selectedResume)
+      fieldErrors.resume = "Choose a PDF or DOCX resume.";
     setErrors(fieldErrors);
     setError(undefined);
     if (!valid.payload || Object.keys(fieldErrors).length) return;
@@ -114,6 +137,7 @@ export default function ApplyJobDialog({
     }
     setPending(true);
     let applyStarted = false;
+    let registrationStarted = false;
     let step = "Checking application history";
     try {
       setStage(`${step}…`);
@@ -127,17 +151,17 @@ export default function ApplyJobDialog({
         setSubmitted(true);
         return;
       }
-      let readyResume = resume;
+      let readyResume = selectedResume ?? resume;
       if (!readyResume && file) {
         let key = uploadedKey;
         if (!key) {
-          step = "Requesting resume upload URL";
+          step = "Preparing resume upload";
           setStage(`${step}…`);
           const upload = await requestResumeUpload(
             file,
             controller.current?.signal,
           );
-          step = "Uploading resume to storage";
+          step = "Uploading resume";
           setStage(`${step}…`);
           await uploadResumeFile(
             upload.uploadUrl,
@@ -148,15 +172,27 @@ export default function ApplyJobDialog({
           key = upload.storageKey;
           setUploadedKey(key);
         }
-        step = "Registering uploaded resume";
+        step = "Saving resume";
         setStage(`${step}…`);
+        registrationStarted = true;
         readyResume = await createResume(
           file.name,
           key,
           controller.current?.signal,
         );
-        if (!readyResume.publicId)
-          throw new Error("The resume response is incomplete. Please retry.");
+        if (!readyResume.publicId || !readyResume.ingestionPublicId) {
+          setRegistrationUncertain(true);
+          throw new Error(
+            "Unable to confirm the saved resume. Check My Resumes before uploading again.",
+          );
+        }
+        resumeWorkspace.rememberResume(readyResume, {
+          name: file.name,
+          storageKey: key,
+          contentType: resumeContentType(file),
+          size: file.size,
+        });
+        registrationStarted = false;
         setResume(readyResume);
       }
       if (!readyResume) throw new Error("Choose a resume first.");
@@ -172,7 +208,7 @@ export default function ApplyJobDialog({
       setSubmitted(true);
       jobs.confirmApplication(job.publicId);
       jobs.invalidateSearch();
-      step = "Synchronizing application history";
+      step = "Updating applications";
       setStage(`${step}…`);
       try {
         const history = await jobs.refreshHistory();
@@ -192,10 +228,10 @@ export default function ApplyJobDialog({
       setError(
         `${step}: ${jobErrorMessage(error, step !== "Checking application history")}`,
       );
+      if (registrationStarted && isUncertainMutation(error))
+        setRegistrationUncertain(true);
       if (applyStarted && isUncertainMutation(error)) {
-        setStage(
-          "Checking all history pages to resolve the uncertain submission…",
-        );
+        setStage("Checking your application…");
         try {
           const history = await jobs.refreshHistory();
           const found = history.find(
@@ -209,7 +245,7 @@ export default function ApplyJobDialog({
             setError(undefined);
           } else
             setError(
-              `${jobErrorMessage(error, true)} All history pages were checked and this Job has no application yet. You may choose to submit again; your created resume will be reused.`,
+              `${jobErrorMessage(error, true)} No application was found for this job. You can submit again.`,
             );
         } catch (historyError) {
           setError(
@@ -260,6 +296,13 @@ export default function ApplyJobDialog({
               Load application history
             </Button>
           )}
+          {evaluationResumeId && (
+            <ApplicantEvaluation
+              key={`${job.publicId}:${evaluationResumeId}`}
+              jobId={job.publicId}
+              resumeId={evaluationResumeId}
+            />
+          )}
           <Link className="text-link" to="/freelancer/applications">
             View My Applications
           </Link>
@@ -274,7 +317,10 @@ export default function ApplyJobDialog({
           onSubmit={submit}
           style={{ marginTop: 20 }}
         >
-          <fieldset className="job-form-fields stack" disabled={pending}>
+          <fieldset
+            className="job-form-fields stack"
+            disabled={pending || registrationUncertain}
+          >
             <JobField
               label="Cover letter"
               name="coverLetter"
@@ -303,32 +349,52 @@ export default function ApplyJobDialog({
                 )}
               </JobField>
             </div>
-            <JobField
-              label="Resume (PDF or DOCX)"
-              name="resume"
-              error={errors.resume}
-              hint="1 byte to 5 MiB. The uploaded resume will be shared with this application."
-            >
-              {(props) => (
-                <input
-                  {...props}
-                  type="file"
-                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  onChange={(event) => selectFile(event.target.files?.[0])}
-                />
-              )}
-            </JobField>
-            {resume && (
-              <p className="notice">
-                Resume ready: {file?.name}. It will be reused if you retry
-                submitting.
-              </p>
+            {resumeWorkspace.resumes.length > 0 && (
+              <label className="field">
+                <span className="field-label">Use an available resume</span>
+                <select
+                  value={selectedId}
+                  onChange={(event) => {
+                    setSelectedId(event.target.value);
+                    setResume(undefined);
+                    setFile(undefined);
+                    setUploadedKey(undefined);
+                    setErrors((previous) => ({ ...previous, resume: "" }));
+                  }}
+                >
+                  <option value="">Upload a new resume</option>
+                  {resumeWorkspace.resumes.map((item) => (
+                    <option key={item.publicId} value={item.publicId}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
+            {selectedResume && <ResumeStatus resume={selectedResume} />}
+            {!selectedId && (
+              <JobField
+                label="Resume (PDF or DOCX)"
+                name="resume"
+                error={errors.resume}
+                hint="1 byte to 5 MiB. The uploaded resume will be shared with this application."
+              >
+                {(props) => (
+                  <input
+                    {...props}
+                    type="file"
+                    accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(event) => selectFile(event.target.files?.[0])}
+                  />
+                )}
+              </JobField>
+            )}
+            {resume && <p className="notice">Resume: {file?.name}</p>}
           </fieldset>
           {pending && (
             <div className="upload-status" role="status">
               <p>{stage}</p>
-              {stage === "Uploading resume to storage…" && (
+              {stage === "Uploading resume…" && (
                 <>
                   <progress
                     aria-label="Resume upload progress"
@@ -341,6 +407,12 @@ export default function ApplyJobDialog({
             </div>
           )}
           {error && <JobError message={error} />}
+          {registrationUncertain && (
+            <p className="notice">
+              The resume may already have been saved. Check My Resumes before
+              uploading again.
+            </p>
+          )}
           {jobs.historyState === "error" && (
             <JobError
               message={jobs.historyError ?? "History unavailable."}
@@ -358,7 +430,12 @@ export default function ApplyJobDialog({
             </Button>
             <Button
               type="submit"
-              disabled={pending || expired || jobs.historyState !== "ready"}
+              disabled={
+                pending ||
+                registrationUncertain ||
+                expired ||
+                jobs.historyState !== "ready"
+              }
             >
               {pending ? "Processing…" : "Submit application"}
             </Button>

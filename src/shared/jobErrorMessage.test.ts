@@ -11,16 +11,16 @@ function httpError(status: number, headers = new AxiosHeaders()): AxiosError {
     config: { headers: new AxiosHeaders() },
   });
 }
-test("HTTP status defines the error, request IDs are optional and case-insensitive", () => {
+test("HTTP status defines the error without displaying request diagnostics", () => {
   assert.match(jobErrorMessage(httpError(400)), /values were not accepted/);
   assert.match(jobErrorMessage(httpError(403)), /permission/);
   assert.match(jobErrorMessage(httpError(404)), /unavailable/);
   assert.match(jobErrorMessage(httpError(500)), /temporarily unavailable/);
-  assert.match(
+  assert.equal(
     jobErrorMessage(
       httpError(500, new AxiosHeaders({ "X-Request-ID": "request-123" })),
     ),
-    /Request ID: request-123/,
+    jobErrorMessage(httpError(500)),
   );
 });
 test("network errors, timeout and 500 mutations are uncertain while explicit rejections are not", () => {

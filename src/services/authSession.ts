@@ -4,11 +4,34 @@ import type { AuthSession, TokenResponse } from "../types/auth.ts";
 let session: AuthSession | null = null;
 let generation = 0;
 let refreshAllowed = true;
+const refreshBlocks = new Set<symbol>();
+let controller = new AbortController();
+export const getSessionSignal = (): AbortSignal => controller.signal;
+export function blockSessionRefresh(): () => void {
+  const reservation = Symbol("auth-cookie-mutation");
+  refreshBlocks.add(reservation);
+  return () => {
+    refreshBlocks.delete(reservation);
+  };
+}
+export function beginSessionTransition(): number {
+  generation++;
+  controller.abort();
+  controller = new AbortController();
+  refreshAllowed = false;
+  if (session) session = { ...session, transitioning: true };
+  listeners.forEach((listener) => listener());
+  return generation;
+}
+export function allowSessionRefresh(): void {
+  refreshAllowed = true;
+}
 const listeners = new Set<() => void>();
 export const getAuthSession = (): AuthSession | null => session;
 export const getAccessToken = (): string | null => session?.accessToken ?? null;
 export const getSessionGeneration = (): number => generation;
-export const canRefreshSession = (): boolean => refreshAllowed;
+export const canRefreshSession = (): boolean =>
+  refreshAllowed && refreshBlocks.size === 0;
 export function subscribeAuthSession(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
@@ -17,6 +40,8 @@ export function subscribeAuthSession(listener: () => void): () => void {
 }
 export function clearAccessToken(): void {
   generation++;
+  controller.abort();
+  controller = new AbortController();
   refreshAllowed = false;
   session = null;
   listeners.forEach((listener) => listener());
@@ -49,11 +74,30 @@ export function setAuthSession(
       claims.exp * 1000 <= Date.now()
     )
       throw new Error();
+    let demo: AuthSession["demo"];
+    if (claims.demoSessionId !== undefined) {
+      if (
+        typeof claims.demoSessionId !== "string" ||
+        !claims.demoSessionId ||
+        !Number.isFinite(claims.demoExpiresAt) ||
+        claims.demoExpiresAt <= Date.now() ||
+        !Number.isSafeInteger(claims.demoGeneration) ||
+        claims.demoGeneration < 0
+      )
+        throw new Error();
+      demo = {
+        sessionId: claims.demoSessionId,
+        expiresAt: claims.demoExpiresAt,
+        generation: claims.demoGeneration,
+      };
+    }
     session = {
       accessToken: data.accessToken,
+      demo,
       expiresAt: Math.min(
         Date.now() + data.expiresIn * 1000,
         claims.exp * 1000,
+        demo?.expiresAt ?? Infinity,
       ),
       user: {
         publicId: claims.sub,

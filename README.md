@@ -8,7 +8,16 @@ cp .env.example .env.local
 npm run dev
 ```
 
-The default API URL is `http://localhost:3000/api`. Override it with the browser-safe `VITE_API_BASE_URL` environment variable. Vite reads this value at build time.
+API requests and processing sockets share the browser-safe `VITE_API_BASE_URL` environment variable. Set exactly one value in `.env.local` to switch backends:
+
+```dotenv
+# Local backend (default):
+VITE_API_BASE_URL=http://localhost:3000/api
+# Render backend (uncomment this and comment out the local value to switch):
+# VITE_API_BASE_URL=https://fitworkbe-nestjs.onrender.com/api
+```
+
+Keep `/api` in the URL because services append their endpoint paths; sockets derive the backend origin automatically. Restart `npm run dev` after changing the value. Vite embeds it at build time, so deployed bundles must be rebuilt. For Docker builds, pass `--build-arg VITE_API_BASE_URL=https://fitworkbe-nestjs.onrender.com/api`.
 
 Authentication pages are `/auth/sign-in` and `/auth/sign-up`; `/login` and `/register` redirect to them. Registration selects Freelancer (`APPLICANT`) or Client (`COMPANY`) and submits all five required DTO fields. A successful registration returns to sign-in with the email prefilled; it does not log in automatically.
 

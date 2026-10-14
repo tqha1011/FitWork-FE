@@ -1,7 +1,35 @@
 import axios from "axios";
 import { api } from "./api.ts";
 import { resumeContentType } from "../shared/jobValidation.ts";
-import type { ResumeResponse, ResumeUploadResponse } from "../types/job.ts";
+import type {
+  PageResult,
+  ResumeResponse,
+  ResumeUploadResponse,
+} from "../types/job.ts";
+import type { ResumeItem } from "../types/resume.ts";
+
+export async function getResumes(
+  pageNumber = 1,
+  pageSize = 20,
+  signal?: AbortSignal,
+): Promise<PageResult<ResumeItem>> {
+  return (
+    await api.get<PageResult<ResumeItem>>("/resume", {
+      params: { pageNumber, pageSize },
+      signal,
+    })
+  ).data;
+}
+export async function getResume(
+  resumePublicId: string,
+  signal?: AbortSignal,
+): Promise<ResumeItem> {
+  return (
+    await api.get<ResumeItem>(`/resume/${encodeURIComponent(resumePublicId)}`, {
+      signal,
+    })
+  ).data;
+}
 
 // A separate transport keeps API interceptors, JWT and credentialed cookies
 // off signed storage requests. Never attach API headers to this client.
@@ -46,4 +74,33 @@ export async function createResume(
   return (
     await api.post<ResumeResponse>("/resume", { name, storageKey }, { signal })
   ).data;
+}
+
+export async function updateResume(
+  resumePublicId: string,
+  name: string,
+  storageKey: string,
+  signal?: AbortSignal,
+): Promise<ResumeResponse> {
+  return (
+    await api.patch<ResumeResponse>(
+      `/resume/${encodeURIComponent(resumePublicId)}`,
+      { name: name.trim(), storageKey },
+      { signal },
+    )
+  ).data;
+}
+export async function deleteResume(resumePublicId: string): Promise<void> {
+  await api.delete(`/resume/${encodeURIComponent(resumePublicId)}`);
+}
+export async function getResumeDownloadUrl(
+  resumePublicId: string,
+  disposition: "inline" | "attachment" = "attachment",
+): Promise<string> {
+  return (
+    await api.get<{ downloadUrl: string }>(
+      `/resume/${encodeURIComponent(resumePublicId)}/download-url`,
+      { params: { disposition } },
+    )
+  ).data.downloadUrl;
 }

@@ -16,6 +16,8 @@ export interface TokenResponse {
 export interface AuthSession {
   accessToken: string;
   expiresAt: number;
+  demo?: { sessionId: string; expiresAt: number; generation: number };
+  transitioning?: boolean;
   user: { publicId: string; email: string; role: AccountRole };
 }
 export interface ApiError {

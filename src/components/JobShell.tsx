@@ -6,6 +6,7 @@ import {
   Files,
   LogOut,
   MoveUpRight,
+  Sparkles,
   UserRound,
 } from "lucide-react";
 import { toast } from "react-toastify";
@@ -14,6 +15,7 @@ import { logout } from "../services/authService";
 import { authErrorMessage } from "../shared/authErrorMessage";
 import { Button } from "./ui";
 import "../styles/jobs.css";
+import "../styles/resumes.css";
 
 export default function JobShell() {
   const { session } = useAuth();
@@ -60,6 +62,16 @@ export default function JobShell() {
             <NavLink to="/freelancer/applications">
               <Files size={19} aria-hidden="true" />
               My Applications
+            </NavLink>
+          )}
+          <NavLink to={client ? "/client/evaluations" : "/freelancer/resumes"}>
+            <Files size={19} aria-hidden="true" />
+            {client ? "Applicant Evaluations" : "My Resumes"}
+          </NavLink>
+          {!client && (
+            <NavLink to="/freelancer/evaluations">
+              <Sparkles size={19} aria-hidden="true" />
+              My Evaluations
             </NavLink>
           )}
           <NavLink to="/account">

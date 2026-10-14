@@ -80,6 +80,8 @@ test("resume accepts only PDF/DOCX from 1 byte through 5 MiB with exact MIME", (
   for (const file of [
     { name: "r.txt", size: 1, type: "text/plain" },
     { name: "r.pdf", size: 0, type: "" },
+    { name: "r.pdf", size: 1.5, type: "" },
+    { name: "r.pdf", size: Number.NaN, type: "" },
     { name: "r.pdf", size: 5 * 1024 * 1024 + 1, type: "" },
     { name: "r.pdf", size: 1, type: "text/plain" },
   ])

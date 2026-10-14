@@ -172,7 +172,7 @@ async function setup(
         {
           publicId: "resume-new",
           ingestionPublicId: "ingestion-new",
-          ingestionStatus: "QUEUED",
+          ingestionStatus: "PENDING",
         },
         201,
       );
@@ -568,6 +568,20 @@ try {
       await page.getByLabel("Cover letter").inputValue(),
       "I can build this Job.",
     );
+    if (failure === "resumeFailure") {
+      assert.equal(
+        await page
+          .getByRole("button", { name: "Submit application", exact: true })
+          .isDisabled(),
+        true,
+      );
+      assert.equal(state.resumeCalls, 1);
+      checks.push(
+        "resume registration 500: preserve input and block duplicate registration",
+      );
+      await context.close();
+      continue;
+    }
     state[failure] = 0;
     await page
       .getByRole("button", { name: "Submit application", exact: true })
@@ -575,7 +589,6 @@ try {
     await page
       .getByRole("heading", { name: "Application submitted", exact: true })
       .waitFor();
-    if (failure === "resumeFailure") assert.equal(state.storageCalls, 1);
     checks.push(`${failure}: step error, input retention and explicit retry`);
     await context.close();
   }

@@ -4,8 +4,13 @@ import { ToastContainer } from "react-toastify";
 import AuthProvider from "./contexts/AuthProvider";
 import { useAuth } from "./contexts/authContext";
 import { AuthPage } from "./pages/AuthPages";
+import DemoPage from "./pages/DemoPage";
 import AccountPage from "./pages/AccountPage";
 import type { AccountRole } from "./types/auth";
+import ResumeProvider from "./contexts/ResumeProvider";
+import ResumesPage from "./pages/ResumesPage";
+import CompanyEvaluationPage from "./pages/CompanyEvaluationPage";
+import ApplicantEvaluationPage from "./pages/ApplicantEvaluationPage";
 import JobProvider from "./contexts/JobProvider";
 import { getSessionGeneration } from "./services/authSession";
 import JobShell from "./components/JobShell";
@@ -25,6 +30,7 @@ function ProtectedRoute({ role }: { role?: AccountRole }) {
       </main>
     );
   if (!session) return <Navigate to="/auth/sign-in" replace />;
+  if (session.demo) return <Navigate to="/demo" replace />;
   if (role && session.user.role !== role)
     return <Navigate to="/jobs" replace />;
   return <Outlet />;
@@ -36,7 +42,9 @@ function JobWorkspace() {
     <JobProvider
       key={`${getSessionGeneration()}:${session?.user.publicId}:${session?.user.role}`}
     >
-      <JobShell />
+      <ResumeProvider>
+        <JobShell />
+      </ResumeProvider>
     </JobProvider>
   );
 }
@@ -46,6 +54,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          <Route path="/demo" element={<DemoPage />} />
           <Route path="/" element={<Navigate to="/auth/sign-in" replace />} />
           <Route path="/auth/sign-in" element={<AuthPage />} />
           <Route path="/auth/sign-up" element={<AuthPage />} />
@@ -83,8 +92,25 @@ export default function App() {
               <Route path="/account" element={<AccountPage embedded />} />
               <Route element={<ProtectedRoute role="client" />}>
                 <Route path="/client/jobs/new" element={<CreateJobPage />} />
+                <Route
+                  path="/client/evaluations"
+                  element={<CompanyEvaluationPage />}
+                />
+                <Route
+                  path="/client/jobs/:jobPublicId/evaluations/:evaluationPublicId"
+                  element={<CompanyEvaluationPage />}
+                />
               </Route>
               <Route element={<ProtectedRoute role="freelancer" />}>
+                <Route
+                  path="/freelancer/evaluations"
+                  element={<ApplicantEvaluationPage />}
+                />
+                <Route
+                  path="/freelancer/evaluations/:jobPublicId"
+                  element={<ApplicantEvaluationPage />}
+                />
+                <Route path="/freelancer/resumes" element={<ResumesPage />} />
                 <Route
                   path="/freelancer/applications"
                   element={<ApplicationsPage />}
