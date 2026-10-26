@@ -25,8 +25,21 @@ export interface ProcessingSocket {
 }
 type SocketFactory = (
   url: string,
-  options: { auth: { token: string }; autoConnect: false; path: string },
+  options: {
+    auth: { token: string };
+    autoConnect: false;
+    path: string;
+    withCredentials: boolean;
+  },
 ) => ProcessingSocket;
+
+function socketOrigin(): string {
+  const configured = import.meta.env?.VITE_SOCKET_URL;
+  return new URL(
+    configured || (api.defaults.baseURL ?? API_BASE_URL),
+    window.location.origin,
+  ).origin;
+}
 
 export function watchProcessing(
   kind: "resume" | "evaluation",
@@ -35,10 +48,7 @@ export function watchProcessing(
   onConnection: (state: ConnectionState) => void,
   factory: SocketFactory = io as SocketFactory,
 ): () => void {
-  const origin = new URL(
-    api.defaults.baseURL ?? API_BASE_URL,
-    window.location.origin,
-  ).origin;
+  const origin = socketOrigin();
   const join = `${kind}-join`;
   const notify =
     kind === "resume" ? "ingestion-process-notify" : "evaluation-score-notify";
@@ -84,6 +94,7 @@ export function watchProcessing(
       auth: { token },
       autoConnect: false,
       path: "/socket.io",
+      withCredentials: true,
     });
     socket.on(join, ((data: { joined: boolean; current?: State }) => {
       if (!active()) return;

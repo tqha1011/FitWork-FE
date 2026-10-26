@@ -68,6 +68,7 @@ test("evaluation snapshot, reconnect, refreshed token, denial and cleanup follow
     (url, options) => {
       assert.equal(url, "http://localhost:3000/evaluation");
       assert.equal(options.autoConnect, false);
+      assert.equal(options.withCredentials, true);
       assert.equal(options.auth.token.startsWith("Bearer"), false);
       const socket = new FakeSocket();
       socket.auth = options.auth;
